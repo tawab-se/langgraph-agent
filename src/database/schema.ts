@@ -40,9 +40,7 @@ export async function createSchema(): Promise<void> {
       multiTenancy: {
         enabled: true,
       },
-      vectorizers: vectorizer.text2VecPalm({
-        projectId: 'google-ai-studio',
-        apiEndpoint: 'generativelanguage.googleapis.com',
+      vectorizers: vectorizer.text2VecGoogle({
         modelId: 'text-embedding-004',
       }),
     });
