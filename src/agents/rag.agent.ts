@@ -93,7 +93,8 @@ Context:
 ${context}
 
 Instructions:
-- Answer based ONLY on the context provided
+- Answer based on the context provided
+- If the context does not contain relevant information to answer the question, answer using your own knowledge instead
 - Be concise and accurate`;
 
       answer = await geminiClient.generate(prompt);

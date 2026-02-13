@@ -83,29 +83,30 @@ export class DelegatingAgent {
     console.log(colors.delegating('\n🤖 Delegating Agent: ') + colors.info('Analyzing query...'));
     
     const prompt = `
-You are a strict routing agent.
-Your job is to decide WHERE the answer must come from.
+You are a routing agent that decides WHERE the answer should come from.
 
 AVAILABLE ROUTES:
-- rag: Use when the answer SHOULD come from the knowledge base (Weaviate),
-  including domain-specific facts, configs, mocks, schemas, or stored examples.
+- rag: Use when the user is asking about specific documents, uploaded files,
+  company data, stored knowledge, or domain-specific facts that would be in a
+  knowledge base. Examples: "what does our policy say about...", "find info about
+  product X from the docs", "what are the sales numbers".
 - chart: Use when the user asks to create, modify, or explain a chart or chart.js
   configuration, visualization setup, or mock chart data.
 - both: Use when the user needs information from the knowledge base AND a chart
   or visualization built from that information.
-- direct: Use ONLY when the task can be completed WITHOUT any external knowledge,
-  such as pure math, generic code generation, or creative writing.
+- direct: Use when the question is about general knowledge, concepts, how things
+  work, coding help, math, creative writing, or anything that does NOT require
+  looking up specific stored documents. Examples: "how does AI work",
+  "explain kubernetes", "what is machine learning", "write a function that...".
 
 CRITICAL RULES:
-- If the query could be answered using stored mocks or documents, ALWAYS choose 'rag' or 'chart'.
-- NEVER answer from general knowledge if relevant data may exist in the knowledge base.
-- If unsure between 'rag' and 'direct', choose 'rag'.
-- 'direct' is the LAST resort.
+- General knowledge questions should ALWAYS go to 'direct'.
+- Only use 'rag' when the user clearly wants information from their stored documents/knowledge base.
+- If the question is about a general topic (technology, science, programming concepts), use 'direct'.
+- If unsure, prefer 'direct' over 'rag' — the LLM can answer most questions well.
 
 Query:
 "${state.query}"
-
-
 
 Respond with JSON only: {"tools": ["rag"|"chart"|"both"|"direct"], "reasoning": "..."}`;
 
