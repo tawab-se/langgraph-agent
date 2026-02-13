@@ -41,7 +41,8 @@ export async function createSchema(): Promise<void> {
         enabled: true,
       },
       vectorizers: vectorizer.text2VecGoogle({
-        modelId: 'text-embedding-004',
+        projectId: 'google-ai-studio',
+        modelId: 'text-embedding-005',
       }),
     });
 
