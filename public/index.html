@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LangGraph Agent</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f1117;
+      color: #e1e4e8;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    .header {
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .header-icon { font-size: 24px; }
+    .header h1 { font-size: 18px; font-weight: 600; color: #f0f6fc; }
+    .header p { font-size: 12px; color: #8b949e; margin-top: 2px; }
+
+    /* Chat Area */
+    .chat-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .welcome {
+      text-align: center;
+      padding: 60px 20px;
+      color: #8b949e;
+    }
+    .welcome h2 { font-size: 22px; color: #f0f6fc; margin-bottom: 8px; }
+    .welcome p { font-size: 14px; line-height: 1.6; }
+    .welcome .examples { margin-top: 24px; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+    .welcome .example-btn {
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #c9d1d9;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .welcome .example-btn:hover { border-color: #58a6ff; color: #58a6ff; }
+
+    /* Messages */
+    .message { max-width: 800px; width: 100%; margin: 0 auto; }
+
+    .message.user {
+      display: flex;
+      justify-content: flex-end;
+    }
+    .message.user .bubble {
+      background: #1f6feb;
+      color: #fff;
+      padding: 10px 16px;
+      border-radius: 16px 16px 4px 16px;
+      max-width: 70%;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .message.assistant .bubble {
+      background: #161b22;
+      border: 1px solid #30363d;
+      padding: 16px 20px;
+      border-radius: 4px 16px 16px 16px;
+      font-size: 14px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+
+    /* Route Badge */
+    .route-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+    }
+    .route-badge .route-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+    }
+    .route-badge.route-rag {
+      background: #0d2847;
+      color: #58a6ff;
+      border: 1px solid #1f6feb44;
+    }
+    .route-badge.route-rag .route-dot { background: #58a6ff; }
+
+    .route-badge.route-chart {
+      background: #2a1232;
+      color: #d2a8ff;
+      border: 1px solid #8957e544;
+    }
+    .route-badge.route-chart .route-dot { background: #d2a8ff; }
+
+    .route-badge.route-direct {
+      background: #1a2e1a;
+      color: #7ee787;
+      border: 1px solid #3fb95044;
+    }
+    .route-badge.route-direct .route-dot { background: #7ee787; }
+
+    .route-badge.route-both {
+      background: #2a1f0f;
+      color: #f0b849;
+      border: 1px solid #d4940044;
+    }
+    .route-badge.route-both .route-dot { background: #f0b849; }
+
+    /* Answer text */
+    .answer-text {
+      margin-bottom: 2px;
+    }
+
+    /* References Section */
+    .references-section {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #30363d;
+    }
+    .references-section h4 {
+      font-size: 12px;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .references-section h4 .section-icon { font-size: 14px; }
+    .ref-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #21262d;
+      border: 1px solid #30363d;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      color: #c9d1d9;
+      margin: 0 6px 6px 0;
+    }
+    .ref-item .ref-id {
+      background: #1f6feb;
+      color: #fff;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .ref-item .ref-file { color: #58a6ff; }
+    .ref-item .ref-pages { color: #8b949e; }
+
+    /* Chart Config */
+    .chart-section {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #30363d;
+    }
+    .chart-section h4 {
+      font-size: 12px;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .chart-section h4 .section-icon { font-size: 14px; }
+    .chart-meta {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .chart-meta-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      color: #8b949e;
+    }
+    .chart-meta-item span.val { color: #d2a8ff; font-weight: 500; }
+    .chart-block {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .chart-block-header {
+      background: #161b22;
+      padding: 8px 12px;
+      font-size: 12px;
+      color: #8b949e;
+      border-bottom: 1px solid #30363d;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .chart-block-header .copy-btn {
+      background: none;
+      border: 1px solid #30363d;
+      color: #8b949e;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .chart-block-header .copy-btn:hover { color: #58a6ff; border-color: #58a6ff; }
+    .chart-block pre {
+      padding: 12px;
+      font-size: 12px;
+      color: #c9d1d9;
+      overflow-x: auto;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+
+    /* Timing */
+    .response-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 14px;
+      padding-top: 10px;
+      border-top: 1px solid #21262d;
+      font-size: 11px;
+      color: #484f58;
+    }
+
+    /* Loading */
+    .loading-dots { display: inline-flex; gap: 4px; padding: 8px 0; }
+    .loading-dots span {
+      width: 8px;
+      height: 8px;
+      background: #8b949e;
+      border-radius: 50%;
+      animation: dot-pulse 1.4s infinite ease-in-out;
+    }
+    .loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes dot-pulse {
+      0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+      40% { opacity: 1; transform: scale(1); }
+    }
+
+    /* Error */
+    .error-msg {
+      background: #3d1419;
+      border: 1px solid #f8514966;
+      color: #f85149;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+
+    /* Input Area */
+    .input-area {
+      background: #161b22;
+      border-top: 1px solid #30363d;
+      padding: 16px 24px;
+      flex-shrink: 0;
+    }
+    .input-wrapper {
+      max-width: 800px;
+      margin: 0 auto;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .input-wrapper input {
+      flex: 1;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      color: #f0f6fc;
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .input-wrapper input:focus { border-color: #58a6ff; }
+    .input-wrapper input::placeholder { color: #484f58; }
+    .input-wrapper button {
+      background: #1f6feb;
+      color: #fff;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+    .input-wrapper button:hover { background: #388bfd; }
+    .input-wrapper button:disabled { background: #21262d; color: #484f58; cursor: not-allowed; }
+
+    /* Scrollbar */
+    .chat-area::-webkit-scrollbar { width: 6px; }
+    .chat-area::-webkit-scrollbar-track { background: transparent; }
+    .chat-area::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+    .chat-area::-webkit-scrollbar-thumb:hover { background: #484f58; }
+
+    @media (max-width: 600px) {
+      .chat-area { padding: 16px; }
+      .input-area { padding: 12px 16px; }
+      .message.user .bubble { max-width: 85%; }
+      .chart-meta { flex-wrap: wrap; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span class="header-icon">&#129302;</span>
+    <div>
+      <h1>LangGraph Agent</h1>
+      <p>Weaviate RAG &bull; Chart.js &bull; Gemini</p>
+    </div>
+  </div>
+
+  <div class="chat-area" id="chatArea">
+    <div class="welcome" id="welcome">
+      <h2>What can I help you with?</h2>
+      <p>Ask questions about company policies, products, API docs, or request charts.</p>
+      <div class="examples">
+        <button class="example-btn" onclick="askExample(this)">What is the remote work policy?</button>
+        <button class="example-btn" onclick="askExample(this)">Show me a bar chart of sales</button>
+        <button class="example-btn" onclick="askExample(this)">What are the ProductX pricing tiers?</button>
+        <button class="example-btn" onclick="askExample(this)">What is 25 + 17?</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="input-area">
+    <div class="input-wrapper">
+      <input
+        type="text"
+        id="queryInput"
+        placeholder="Type your question..."
+        autocomplete="off"
+        autofocus
+      />
+      <button id="sendBtn" onclick="sendQuery()">Send</button>
+    </div>
+  </div>
+
+  <script>
+    const chatArea = document.getElementById('chatArea');
+    const queryInput = document.getElementById('queryInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const welcome = document.getElementById('welcome');
+
+    queryInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !sendBtn.disabled) sendQuery();
+    });
+
+    function askExample(btn) {
+      queryInput.value = btn.textContent;
+      sendQuery();
+    }
+
+    function scrollToBottom() {
+      chatArea.scrollTop = chatArea.scrollHeight;
+    }
+
+    function addUserMessage(text) {
+      if (welcome) welcome.remove();
+      const div = document.createElement('div');
+      div.className = 'message user';
+      div.innerHTML = '<div class="bubble">' + escapeHtml(text) + '</div>';
+      chatArea.appendChild(div);
+      scrollToBottom();
+    }
+
+    function addLoadingMessage() {
+      const div = document.createElement('div');
+      div.className = 'message assistant';
+      div.id = 'loading-msg';
+      div.innerHTML = '<div class="bubble"><div class="loading-dots"><span></span><span></span><span></span></div></div>';
+      chatArea.appendChild(div);
+      scrollToBottom();
+      return div;
+    }
+
+    function removeLoading() {
+      const el = document.getElementById('loading-msg');
+      if (el) el.remove();
+    }
+
+    /**
+     * Determine which route was used based on response data
+     */
+    function detectRoute(result) {
+      const data = result.data || [];
+      const hasRag = data.some(d => d.type === 'rag');
+      const hasChart = data.some(d => d.type === 'chart');
+
+      if (hasRag && hasChart) return { key: 'both', label: 'RAG + Chart', icon: '&#9878;' };
+      if (hasRag) return { key: 'rag', label: 'Weaviate RAG', icon: '&#128218;' };
+      if (hasChart) return { key: 'chart', label: 'Chart.js', icon: '&#128202;' };
+      return { key: 'direct', label: 'Gemini LLM', icon: '&#9889;' };
+    }
+
+    function addAssistantMessage(result, elapsed) {
+      const div = document.createElement('div');
+      div.className = 'message assistant';
+      const route = detectRoute(result);
+
+      let html = '<div class="bubble">';
+
+      // Route badge
+      html += '<div class="route-badge route-' + route.key + '">'
+        + '<span class="route-dot"></span>'
+        + 'Answered via ' + route.label
+        + '</div>';
+
+      // Answer text
+      html += '<div class="answer-text">' + escapeHtml(result.answer) + '</div>';
+
+      // RAG references
+      const ragRefs = (result.data || []).filter(d => d.type === 'rag');
+      if (ragRefs.length > 0) {
+        html += '<div class="references-section">'
+          + '<h4><span class="section-icon">&#128218;</span> Sources from Knowledge Base</h4>';
+        ragRefs.forEach(ref => {
+          const pages = ref.pages.join(', ');
+          html += '<span class="ref-item">'
+            + '<span class="ref-id">' + escapeHtml(ref.displayId) + '</span>'
+            + '<span class="ref-file">' + escapeHtml(ref.fileId) + '</span>'
+            + '<span class="ref-pages">Pages ' + escapeHtml(pages) + '</span>'
+            + '</span>';
+        });
+        html += '</div>';
+      }
+
+      // Chart configs
+      const chartRefs = (result.data || []).filter(d => d.type === 'chart');
+      if (chartRefs.length > 0) {
+        html += '<div class="chart-section">'
+          + '<h4><span class="section-icon">&#128202;</span> Chart Configuration</h4>';
+
+        chartRefs.forEach(item => {
+          const cfg = item.config;
+          const json = JSON.stringify(cfg, null, 2);
+
+          // Chart metadata
+          html += '<div class="chart-meta">'
+            + '<div class="chart-meta-item">Type: <span class="val">' + escapeHtml(cfg.type) + '</span></div>'
+            + '<div class="chart-meta-item">Labels: <span class="val">' + cfg.data.labels.length + '</span></div>'
+            + '<div class="chart-meta-item">Datasets: <span class="val">' + cfg.data.datasets.length + '</span></div>'
+            + '</div>';
+
+          html += '<div class="chart-block">'
+            + '<div class="chart-block-header">'
+            + '<span>chart.js config</span>'
+            + '<button class="copy-btn" onclick="copyToClipboard(this)">Copy JSON</button>'
+            + '</div>'
+            + '<pre>' + escapeHtml(json) + '</pre>'
+            + '</div>';
+        });
+
+        html += '</div>';
+      }
+
+      // Response time
+      const timeStr = elapsed < 1000 ? elapsed + 'ms' : (elapsed / 1000).toFixed(1) + 's';
+      html += '<div class="response-meta">'
+        + '<span>' + route.icon + ' ' + route.label + '</span>'
+        + '<span>&#8226;</span>'
+        + '<span>' + timeStr + '</span>'
+        + '</div>';
+
+      html += '</div>';
+      div.innerHTML = html;
+      chatArea.appendChild(div);
+      scrollToBottom();
+    }
+
+    function addErrorMessage(msg) {
+      const div = document.createElement('div');
+      div.className = 'message assistant';
+      div.innerHTML = '<div class="error-msg">' + escapeHtml(msg) + '</div>';
+      chatArea.appendChild(div);
+      scrollToBottom();
+    }
+
+    async function sendQuery() {
+      const query = queryInput.value.trim();
+      if (!query) return;
+
+      queryInput.value = '';
+      sendBtn.disabled = true;
+      queryInput.disabled = true;
+
+      addUserMessage(query);
+      addLoadingMessage();
+
+      const startTime = Date.now();
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query }),
+        });
+
+        removeLoading();
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || err.error || 'Request failed');
+        }
+
+        const result = await res.json();
+        const elapsed = Date.now() - startTime;
+        addAssistantMessage(result, elapsed);
+      } catch (err) {
+        removeLoading();
+        addErrorMessage('Error: ' + err.message);
+      } finally {
+        sendBtn.disabled = false;
+        queryInput.disabled = false;
+        queryInput.focus();
+      }
+    }
+
+    function copyToClipboard(btn) {
+      const pre = btn.closest('.chart-block').querySelector('pre');
+      navigator.clipboard.writeText(pre.textContent).then(() => {
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy JSON'; }, 1500);
+      });
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.appendChild(document.createTextNode(text));
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>
