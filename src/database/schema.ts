@@ -43,7 +43,7 @@ export async function createSchema(): Promise<void> {
       vectorizers: vectorizer.text2VecGoogle({
         projectId: 'google-ai-studio',
         apiEndpoint: 'generativelanguage.googleapis.com',
-        modelId: 'text-embedding-005',
+        modelId: 'text-embedding-004',
       }),
     });
 
