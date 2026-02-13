@@ -14,7 +14,7 @@ export async function getWeaviateClient(): Promise<WeaviateClient> {
       client = await weaviate.connectToWeaviateCloud(WEAVIATE_URL, {
         authCredentials: new weaviate.ApiKey(WEAVIATE_API_KEY),
         headers: {
-          'X-Google-Api-Key': process.env.GEMINI_API_KEY || '',
+          'X-Goog-Api-Key': process.env.GEMINI_API_KEY || '',
         },
       });
       console.log('✅ Connected to Weaviate Cloud');
