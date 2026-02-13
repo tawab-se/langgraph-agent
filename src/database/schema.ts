@@ -1,6 +1,6 @@
 import { getWeaviateClient } from './weaviate.client.js';
 import { COLLECTION_NAME } from '../config/weaviate.config.js';
-import { dataType, vectorizer } from 'weaviate-client';
+import { dataType, configure } from 'weaviate-client';
 
 export async function createSchema(): Promise<void> {
   const client = await getWeaviateClient();
@@ -40,15 +40,13 @@ export async function createSchema(): Promise<void> {
       multiTenancy: {
         enabled: true,
       },
-      vectorizers: vectorizer.text2VecGoogle({
-        projectId: 'google-ai-studio',
-        apiEndpoint: 'generativelanguage.googleapis.com',
-        modelId: 'embedding-001',
+      vectorizers: configure.vectors.text2VecGoogleAiStudio({
+        model: 'gemini-embedding-001',
       }),
     });
 
     console.log(`✅ Schema created with Gemini embedding model`);
-    console.log('   - Vectorizer: text-embedding-004 (Gemini)');
+    console.log('   - Vectorizer: gemini-embedding-001 (Google AI Studio');
     console.log('   - fileId: text (not vectorized)');
     console.log('   - question: text (vectorized)');
     console.log('   - answer: text (vectorized)');
