@@ -2,9 +2,9 @@ import { StateGraph, END, START } from '@langchain/langgraph';
 import { AgentState, ToolDecision, StreamingResponse, ResponseData } from './types.js';
 import { ragAgent } from './rag.agent.js';
 import { chartTool } from '../tools/chart.tool.js';
+import { imageTool } from '../tools/image.tool.js';
 import { geminiClient } from '../llm/gemini.client.js';
 import { colors, printRouting } from '../utils/terminal.ui.js';
-import { imageTool } from '../tools/image.tool.js';
 
 export interface SSEEvent {
   type: 'thinking' | 'route' | 'token' | 'references' | 'chart' | 'image' | 'sources' | 'done' | 'error';
@@ -384,7 +384,6 @@ Respond with JSON only: {"tools": ["rag"|"chart"|"both"|"direct"|"image"], "reas
       } else if (mainTool === 'image') {
         // 2c. Image generation/editing
         console.log(colors.info('\n🎨 Executing Image Tool...'));
-        yield { type: 'thinking', data: 'Generating image...' };
         const result = await imageTool.execute(query, imageUrl);
         data.push({ type: 'image' as const, url: result.url, prompt: result.prompt, model: result.model });
         yield { type: 'image', data: result };
