@@ -4,7 +4,7 @@ export interface ImageResult {
   model: string;
 }
 
-const POLLINATIONS_BASE = 'https://image.pollinations.ai/prompt';
+const POLLINATIONS_BASE = 'https://gen.pollinations.ai/image';
 
 /**
  * Image Tool - Generates or edits images via Pollinations.ai
@@ -22,6 +22,7 @@ export class ImageTool {
       height: '1024',
       nologo: 'true',
       seed: String(Math.floor(Math.random() * 1000000)),
+      key: process.env.POLLINATIONS_API_KEY || '',
     });
 
     if (imageUrl) {
