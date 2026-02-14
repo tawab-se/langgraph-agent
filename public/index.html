@@ -334,6 +334,62 @@
     .chat-area::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
     .chat-area::-webkit-scrollbar-thumb:hover { background: #484f58; }
 
+    /* Upload Button */
+    .upload-btn {
+      background: #21262d;
+      color: #8b949e;
+      border: 1px solid #30363d;
+      padding: 12px 14px;
+      border-radius: 10px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    .upload-btn:hover { border-color: #58a6ff; color: #58a6ff; }
+    .upload-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    #fileInput { display: none; }
+
+    /* Upload toast */
+    .upload-toast {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      z-index: 1000;
+      animation: slideIn 0.3s ease;
+      max-width: 400px;
+    }
+    .upload-toast.success { background: #1a2e1a; border: 1px solid #3fb95066; color: #7ee787; }
+    .upload-toast.error { background: #3d1419; border: 1px solid #f8514966; color: #f85149; }
+    .upload-toast.uploading { background: #0d2847; border: 1px solid #1f6feb44; color: #58a6ff; }
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* Drag-drop overlay */
+    .drag-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(31, 111, 235, 0.08);
+      border: 3px dashed #1f6feb;
+      z-index: 999;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      color: #58a6ff;
+      pointer-events: none;
+    }
+    .drag-overlay.active { display: flex; }
+
     @media (max-width: 600px) {
       .chat-area { padding: 16px; }
       .input-area { padding: 12px 16px; }
@@ -366,6 +422,10 @@
 
   <div class="input-area">
     <div class="input-wrapper">
+      <input type="file" id="fileInput" accept=".pdf" />
+      <button class="upload-btn" id="uploadBtn" onclick="document.getElementById('fileInput').click()" title="Upload PDF">
+        &#128206; PDF
+      </button>
       <input
         type="text"
         id="queryInput"
@@ -570,6 +630,129 @@
       div.appendChild(document.createTextNode(text));
       return div.innerHTML;
     }
+
+    // --- File Upload ---
+    const fileInput = document.getElementById('fileInput');
+    const uploadBtn = document.getElementById('uploadBtn');
+    let isUploading = false;
+
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) uploadFile(file);
+      fileInput.value = '';
+    });
+
+    async function uploadFile(file) {
+      if (isUploading) return;
+      if (file.type !== 'application/pdf') {
+        showToast('Only PDF files are supported', 'error');
+        return;
+      }
+      if (file.size > 20 * 1024 * 1024) {
+        showToast('File too large. Maximum size is 20 MB.', 'error');
+        return;
+      }
+
+      isUploading = true;
+      uploadBtn.disabled = true;
+      showToast('Uploading "' + file.name + '"...', 'uploading', 0);
+
+      const formData = new FormData();
+      formData.append('pdf', file);
+
+      try {
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        dismissToast();
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || err.error || 'Upload failed');
+        }
+
+        const result = await res.json();
+        showToast(result.message, 'success', 5000);
+        addSystemMessage('Uploaded "' + result.filename + '" \u2014 ' + result.totalPages + ' pages, ' + result.chunksCreated + ' chunks indexed. You can now ask questions about this document.');
+      } catch (err) {
+        dismissToast();
+        showToast('Upload failed: ' + err.message, 'error', 5000);
+      } finally {
+        isUploading = false;
+        uploadBtn.disabled = false;
+      }
+    }
+
+    function showToast(message, type, duration) {
+      if (duration === undefined) duration = 4000;
+      dismissToast();
+      const toast = document.createElement('div');
+      toast.className = 'upload-toast ' + type;
+      toast.id = 'currentToast';
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      if (duration > 0) {
+        setTimeout(dismissToast, duration);
+      }
+    }
+
+    function dismissToast() {
+      const el = document.getElementById('currentToast');
+      if (el) el.remove();
+    }
+
+    function addSystemMessage(text) {
+      if (welcome) welcome.remove();
+      const div = document.createElement('div');
+      div.className = 'message assistant';
+      div.innerHTML = '<div class="bubble">'
+        + '<div class="route-badge route-direct"><span class="route-dot"></span>System</div>'
+        + '<div class="answer-text">' + escapeHtml(text) + '</div>'
+        + '</div>';
+      chatArea.appendChild(div);
+      scrollToBottom();
+    }
+
+    // Drag and drop
+    const dragOverlay = document.getElementById('dragOverlay');
+    let dragCounter = 0;
+
+    document.addEventListener('dragenter', (e) => {
+      e.preventDefault();
+      dragCounter++;
+      if (e.dataTransfer.types.includes('Files')) {
+        dragOverlay.classList.add('active');
+      }
+    });
+
+    document.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      dragCounter--;
+      if (dragCounter <= 0) {
+        dragCounter = 0;
+        dragOverlay.classList.remove('active');
+      }
+    });
+
+    document.addEventListener('dragover', (e) => {
+      e.preventDefault();
+    });
+
+    document.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dragCounter = 0;
+      dragOverlay.classList.remove('active');
+      const files = e.dataTransfer.files;
+      if (files.length > 0 && files[0].type === 'application/pdf') {
+        uploadFile(files[0]);
+      } else if (files.length > 0) {
+        showToast('Only PDF files are supported', 'error');
+      }
+    });
   </script>
+
+  <div class="drag-overlay" id="dragOverlay">Drop PDF file here to upload</div>
 </body>
 </html>
