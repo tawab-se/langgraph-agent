@@ -475,6 +475,188 @@
     }
     .drag-overlay.active { display: flex; }
 
+    /* About Modal */
+    .about-btn {
+      background: #21262d;
+      color: #8b949e;
+      border: 1px solid #30363d;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-left: auto;
+      white-space: nowrap;
+    }
+    .about-btn:hover { border-color: #58a6ff; color: #58a6ff; }
+
+    .about-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 1001;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .about-overlay.active { display: flex; }
+
+    .about-modal {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      max-width: 720px;
+      width: 100%;
+      max-height: 85vh;
+      overflow-y: auto;
+      padding: 32px;
+      position: relative;
+    }
+    .about-modal::-webkit-scrollbar { width: 6px; }
+    .about-modal::-webkit-scrollbar-track { background: transparent; }
+    .about-modal::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+
+    .about-close {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: none;
+      border: none;
+      color: #8b949e;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+    .about-close:hover { color: #f0f6fc; background: #21262d; }
+
+    .about-modal h2 {
+      font-size: 20px;
+      color: #f0f6fc;
+      margin-bottom: 6px;
+    }
+    .about-modal .about-subtitle {
+      font-size: 13px;
+      color: #8b949e;
+      margin-bottom: 28px;
+      line-height: 1.5;
+    }
+
+    .about-section {
+      margin-bottom: 28px;
+    }
+    .about-section h3 {
+      font-size: 14px;
+      color: #f0f6fc;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .about-section h3 .section-icon { font-size: 16px; }
+
+    .model-card {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+    }
+    .model-card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .model-card-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 8px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .model-card-badge.badge-blue { background: #0d2847; color: #58a6ff; border: 1px solid #1f6feb44; }
+    .model-card-badge.badge-green { background: #1a2e1a; color: #7ee787; border: 1px solid #3fb95044; }
+    .model-card-badge.badge-purple { background: #2a1232; color: #d2a8ff; border: 1px solid #8957e544; }
+    .model-card-badge.badge-pink { background: #2a1a2e; color: #f778ba; border: 1px solid #f778ba44; }
+    .model-card-badge.badge-orange { background: #2a1f0f; color: #f0b849; border: 1px solid #d4940044; }
+    .model-card-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: #f0f6fc;
+    }
+    .model-card p {
+      font-size: 12px;
+      color: #8b949e;
+      line-height: 1.6;
+      margin: 0;
+    }
+    .model-card code {
+      background: #21262d;
+      color: #c9d1d9;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 11px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+
+    .flow-step {
+      display: flex;
+      gap: 14px;
+      margin-bottom: 4px;
+      position: relative;
+    }
+    .flow-step-num {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #1f6feb;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .flow-step-content {
+      flex: 1;
+      padding-bottom: 20px;
+      border-left: 2px solid #21262d;
+      margin-left: -15px;
+      padding-left: 25px;
+    }
+    .flow-step:last-child .flow-step-content { border-left: 2px solid transparent; padding-bottom: 0; }
+    .flow-step-content h4 {
+      font-size: 13px;
+      color: #f0f6fc;
+      margin-bottom: 4px;
+      font-weight: 600;
+    }
+    .flow-step-content p {
+      font-size: 12px;
+      color: #8b949e;
+      line-height: 1.6;
+      margin: 0;
+    }
+
+    .about-footer {
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid #30363d;
+      font-size: 11px;
+      color: #484f58;
+      text-align: center;
+      line-height: 1.6;
+    }
+    .about-footer a { color: #58a6ff; text-decoration: none; }
+    .about-footer a:hover { text-decoration: underline; }
+
     @media (max-width: 600px) {
       .chat-area { padding: 16px; }
       .input-area { padding: 12px 16px; }
@@ -491,6 +673,7 @@
       <h1>LangGraph Agent</h1>
       <p>Weaviate RAG &bull; Chart.js &bull; Gemini &bull; Pollinations.ai &bull; Puter.js</p>
     </div>
+    <button class="about-btn" onclick="document.getElementById('aboutOverlay').classList.add('active')">&#9432; About</button>
   </div>
 
   <div class="chat-area" id="chatArea">
@@ -1028,6 +1211,193 @@
       }
     });
   </script>
+
+  <!-- About Modal -->
+  <div class="about-overlay" id="aboutOverlay" onclick="if(event.target===this)this.classList.remove('active')">
+    <div class="about-modal">
+      <button class="about-close" onclick="document.getElementById('aboutOverlay').classList.remove('active')">&times;</button>
+
+      <h2>LangGraph Agent</h2>
+      <p class="about-subtitle">
+        A multi-route AI agent built with LangGraph, Node.js, and Express. The agent intelligently routes each query
+        to the right tool &mdash; RAG search, chart generation, direct LLM answer, text-to-image, or image editing &mdash;
+        and streams the response in real time via Server-Sent Events (SSE).
+      </p>
+
+      <!-- Models Section -->
+      <div class="about-section">
+        <h3><span class="section-icon">&#129520;</span> Models &amp; Services</h3>
+
+        <div class="model-card">
+          <div class="model-card-header">
+            <span class="model-card-badge badge-green">Router + Direct + RAG</span>
+            <span class="model-card-name">Gemini 2.5 Flash Lite</span>
+          </div>
+          <p>
+            Google's <code>gemini-2.5-flash-lite</code> model powers three core functions:
+            <strong>query routing</strong> (deciding which tool handles each query),
+            <strong>direct answers</strong> (general knowledge, coding, math), and
+            <strong>RAG synthesis</strong> (generating answers from retrieved document chunks).
+            Free tier: 1,000 requests/day, 15 requests/minute.
+          </p>
+        </div>
+
+        <div class="model-card">
+          <div class="model-card-header">
+            <span class="model-card-badge badge-blue">Vector Database</span>
+            <span class="model-card-name">Weaviate Cloud</span>
+          </div>
+          <p>
+            Weaviate is used as the vector database for RAG (Retrieval-Augmented Generation).
+            When you upload a PDF, it is parsed into text chunks and stored as vector embeddings
+            in Weaviate. When a document-related query is routed to RAG, Weaviate performs a
+            semantic similarity search to find the most relevant chunks.
+          </p>
+        </div>
+
+        <div class="model-card">
+          <div class="model-card-header">
+            <span class="model-card-badge badge-purple">Chart Generation</span>
+            <span class="model-card-name">Chart.js via Gemini</span>
+          </div>
+          <p>
+            When a chart or visualization is requested, Gemini generates a valid
+            <code>Chart.js</code> JSON configuration (type, labels, datasets, colors).
+            The config is returned to the UI where it can be copied and used directly
+            with the Chart.js library.
+          </p>
+        </div>
+
+        <div class="model-card">
+          <div class="model-card-header">
+            <span class="model-card-badge badge-pink">Text-to-Image</span>
+            <span class="model-card-name">Pollinations.ai &mdash; FLUX</span>
+          </div>
+          <p>
+            Text-to-image generation uses <code>Pollinations.ai</code> with the <code>flux</code> model.
+            The server constructs a Pollinations image URL with the user's prompt, and the browser
+            loads it via <code>&lt;img src&gt;</code>. The image is generated on the first GET request.
+            Requires a free publishable API key (<code>pk_</code>).
+          </p>
+        </div>
+
+        <div class="model-card">
+          <div class="model-card-header">
+            <span class="model-card-badge badge-pink">Image Editing</span>
+            <span class="model-card-name">Puter.js &mdash; FLUX.1 Kontext Pro</span>
+          </div>
+          <p>
+            Image editing (upload a photo + describe edits) uses <code>Puter.js</code> running
+            client-side in the browser. It calls the <code>FLUX.1-kontext-pro</code> model
+            via Together AI through Puter's free platform. No API key or signup required &mdash;
+            the user's browser makes the AI call directly.
+          </p>
+        </div>
+
+        <div class="model-card">
+          <div class="model-card-header">
+            <span class="model-card-badge badge-orange">Orchestration</span>
+            <span class="model-card-name">LangGraph (StateGraph)</span>
+          </div>
+          <p>
+            <code>@langchain/langgraph</code> provides the agent orchestration framework.
+            A <code>StateGraph</code> defines nodes (router, rag, chart, direct, image, aggregator)
+            and conditional edges that route execution based on the router's decision.
+            This enables a modular, graph-based workflow.
+          </p>
+        </div>
+      </div>
+
+      <!-- Flow Section -->
+      <div class="about-section">
+        <h3><span class="section-icon">&#128260;</span> How It Works</h3>
+
+        <div class="flow-step">
+          <div class="flow-step-num">1</div>
+          <div class="flow-step-content">
+            <h4>User Sends a Query</h4>
+            <p>
+              Type a question in the chat input. Optionally attach a PDF (uploaded to Weaviate for RAG)
+              or an image (for editing). The query is sent to <code>POST /api/chat/stream</code>.
+            </p>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-step-num">2</div>
+          <div class="flow-step-content">
+            <h4>Intelligent Routing</h4>
+            <p>
+              The Delegating Agent sends the query to Gemini with a routing prompt. Gemini classifies
+              it as one of: <strong>rag</strong> (document search), <strong>chart</strong> (visualization),
+              <strong>direct</strong> (general knowledge), <strong>image</strong> (generation/editing),
+              or <strong>both</strong> (RAG + chart). If an image is attached, routing is skipped and
+              the image route is used automatically.
+            </p>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-step-num">3</div>
+          <div class="flow-step-content">
+            <h4>Tool Execution</h4>
+            <p>
+              Based on the route, the appropriate tool runs:<br>
+              <strong>RAG:</strong> Weaviate semantic search &rarr; Gemini synthesizes answer from retrieved chunks.<br>
+              <strong>Chart:</strong> Gemini generates Chart.js config JSON.<br>
+              <strong>Direct:</strong> Gemini answers directly from its knowledge.<br>
+              <strong>Image (text only):</strong> Pollinations.ai generates an image from the prompt.<br>
+              <strong>Image (with photo):</strong> Puter.js edits the photo client-side via FLUX.1 Kontext.
+            </p>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-step-num">4</div>
+          <div class="flow-step-content">
+            <h4>Streaming Response</h4>
+            <p>
+              The server streams the response token-by-token via SSE (Server-Sent Events).
+              The UI renders tokens as they arrive, showing the route badge, answer text,
+              references, chart configs, or generated images in real time.
+            </p>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-step-num">5</div>
+          <div class="flow-step-content">
+            <h4>Result Display</h4>
+            <p>
+              The final response includes the answer text plus any structured data:
+              source references (for RAG), chart JSON (for charts), or generated/edited images.
+              Response time and the route used are shown at the bottom of each message.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tech Stack -->
+      <div class="about-section">
+        <h3><span class="section-icon">&#128736;</span> Tech Stack</h3>
+        <div class="model-card">
+          <p>
+            <strong>Backend:</strong> Node.js, Express, TypeScript, LangGraph<br>
+            <strong>Database:</strong> Weaviate Cloud (vector search)<br>
+            <strong>LLM:</strong> Google Gemini 2.5 Flash Lite (free tier)<br>
+            <strong>Image Gen:</strong> Pollinations.ai (FLUX), Puter.js (FLUX.1 Kontext Pro)<br>
+            <strong>PDF Parsing:</strong> pdf-parse<br>
+            <strong>Streaming:</strong> Server-Sent Events (SSE)<br>
+            <strong>Deployment:</strong> Koyeb
+          </p>
+        </div>
+      </div>
+
+      <div class="about-footer">
+        Built with LangGraph &bull; Weaviate &bull; Gemini &bull; Pollinations.ai &bull; Puter.js
+      </div>
+    </div>
+  </div>
 
   <div class="drag-overlay" id="dragOverlay">Drop PDF or image file here</div>
 </body>
