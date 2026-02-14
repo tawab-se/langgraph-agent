@@ -30,12 +30,8 @@ export class ImageTool {
 
     const url = `${POLLINATIONS_BASE}/${encodedPrompt}?${params.toString()}`;
 
-    // Verify the URL resolves (Pollinations generates on first request)
-    const res = await fetch(url, { method: 'HEAD' });
-    if (!res.ok) {
-      throw new Error(`Pollinations API returned ${res.status}: ${res.statusText}`);
-    }
-
+    // Pollinations generates the image on the first GET request.
+    // The URL itself IS the image — the browser loads it via <img src>.
     return { url, prompt, model };
   }
 }
