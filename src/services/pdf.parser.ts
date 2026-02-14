@@ -1,4 +1,6 @@
-import { PDFParse } from 'pdf-parse';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const pdfParse = require('pdf-parse');
 
 export interface PDFChunk {
   fileId: string;
@@ -18,13 +20,24 @@ const CHUNK_OVERLAP = 100;
 const MIN_PAGE_LENGTH = 50;
 
 export async function parsePDF(buffer: Buffer, filename: string): Promise<PDFParseResult> {
-  const pdf = new PDFParse({ data: new Uint8Array(buffer) });
-  const textResult = await pdf.getText();
+  const pageTexts: Map<number, string> = new Map();
 
+  const result = await pdfParse(buffer, {
+    pagerender(pageData: any) {
+      return pageData.getTextContent().then((textContent: any) => {
+        const text = textContent.items.map((item: any) => item.str).join(' ');
+        pageTexts.set(pageData.pageIndex + 1, text);
+        return text;
+      });
+    },
+  });
+
+  const totalPages = result.numpages;
   const chunks: PDFChunk[] = [];
 
-  for (const page of textResult.pages) {
-    const pageText = cleanText(page.text);
+  for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+    const rawText = pageTexts.get(pageNum) || '';
+    const pageText = cleanText(rawText);
 
     if (pageText.length < MIN_PAGE_LENGTH) continue;
 
@@ -33,16 +46,14 @@ export async function parsePDF(buffer: Buffer, filename: string): Promise<PDFPar
     for (const chunk of textChunks) {
       chunks.push({
         fileId: filename,
-        question: `Content from ${filename}, page ${page.num}`,
+        question: `Content from ${filename}, page ${pageNum}`,
         answer: chunk,
-        pageNumber: [String(page.num)],
+        pageNumber: [String(pageNum)],
       });
     }
   }
 
-  await pdf.destroy();
-
-  return { filename, totalPages: textResult.total, chunks };
+  return { filename, totalPages, chunks };
 }
 
 function cleanText(text: string): string {
@@ -66,14 +77,12 @@ function chunkText(text: string, maxSize = CHUNK_SIZE, overlap = CHUNK_OVERLAP):
     } else {
       if (current) {
         chunks.push(current);
-        // Start new chunk with overlap from end of previous
         const overlapText = current.slice(-overlap);
         const overlapStart = overlapText.indexOf(' ');
         current = overlapStart > 0
           ? overlapText.slice(overlapStart + 1) + ' ' + sentence
           : sentence;
       } else {
-        // Single sentence longer than maxSize — split at word boundary
         let remaining = sentence;
         while (remaining.length > maxSize) {
           const splitAt = remaining.lastIndexOf(' ', maxSize);

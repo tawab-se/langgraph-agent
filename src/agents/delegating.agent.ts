@@ -1,13 +1,14 @@
 import { StateGraph, END, START } from '@langchain/langgraph';
-import { AgentState, ToolDecision, StreamingResponse } from './types.js';
+import { AgentState, ToolDecision, StreamingResponse, ResponseData } from './types.js';
 import { ragAgent } from './rag.agent.js';
 import { chartTool } from '../tools/chart.tool.js';
 import { geminiClient } from '../llm/gemini.client.js';
 import { colors, printRouting } from '../utils/terminal.ui.js';
 
-/**
- * Delegating Agent - Main orchestrator that routes queries to appropriate tools
- */
+export interface SSEEvent {
+  type: 'route' | 'token' | 'references' | 'chart' | 'sources' | 'done' | 'error';
+  data: any;
+}
 export class DelegatingAgent {
   private workflow: any;
 
@@ -15,9 +16,6 @@ export class DelegatingAgent {
     this.workflow = this.buildWorkflow();
   }
 
-  /**
-   * Build the LangGraph workflow
-   */
   private buildWorkflow() {
     // Define the state graph with proper type annotation
     const workflow = new StateGraph<AgentState>({
@@ -135,9 +133,6 @@ Respond with JSON only: {"tools": ["rag"|"chart"|"both"|"direct"], "reasoning": 
     return { decision };
   }
 
-  /**
-   * Route based on decision
-   */
   private routeDecision(state: AgentState): string {
     const tools = state.decision?.tools || ['direct'];
     const mainTool = tools[0];
@@ -149,9 +144,6 @@ Respond with JSON only: {"tools": ["rag"|"chart"|"both"|"direct"], "reasoning": 
     return mainTool;
   }
 
-  /**
-   * RAG node - queries the vector database
-   */
   private async ragNode(state: AgentState): Promise<Partial<AgentState>> {
     console.log(colors.rag('\n📚 Executing RAG Agent...'));
 
@@ -179,9 +171,6 @@ Respond with JSON only: {"tools": ["rag"|"chart"|"both"|"direct"], "reasoning": 
     return { ragResults };
   }
 
-  /**
-   * Chart node - generates chart configuration
-   */
   private async chartNode(state: AgentState): Promise<Partial<AgentState>> {
     console.log(colors.chart('\n📊 Executing Chart Tool...'));
     
@@ -190,9 +179,6 @@ Respond with JSON only: {"tools": ["rag"|"chart"|"both"|"direct"], "reasoning": 
     return { chartConfig };
   }
 
-  /**
-   * Direct answer node - answers without tools
-   */
   private async directNode(state: AgentState): Promise<Partial<AgentState>> {
     console.log(colors.system('\n💬 Providing direct answer...'));
     
@@ -203,9 +189,6 @@ Respond with JSON only: {"tools": ["rag"|"chart"|"both"|"direct"], "reasoning": 
     return { finalAnswer: answer };
   }
 
-  /**
-   * Aggregator node - combines all results
-   */
   private async aggregatorNode(state: AgentState): Promise<Partial<AgentState>> {
     console.log(colors.dim('\n🔄 Aggregating results...'));
     
@@ -240,9 +223,6 @@ Respond with JSON only: {"tools": ["rag"|"chart"|"both"|"direct"], "reasoning": 
     return { finalAnswer: answer, data };
   }
 
-  /**
-   * Process a query and return streaming response
-   */
   async *processQuery(query: string): AsyncGenerator<StreamingResponse, void, unknown> {
     console.log(colors.bold(`\n${'═'.repeat(60)}`));
     console.log(colors.bold.cyan(`🚀 Processing Query: `) + colors.info(`"${query}"`));
@@ -297,9 +277,6 @@ Respond with JSON only: {"tools": ["rag"|"chart"|"both"|"direct"], "reasoning": 
     }
   }
 
-  /**
-   * Process a query and return final result (non-streaming)
-   */
   async processQuerySync(query: string): Promise<StreamingResponse> {
     let finalResponse: StreamingResponse = { answer: '', data: [] };
 
@@ -313,6 +290,78 @@ Respond with JSON only: {"tools": ["rag"|"chart"|"both"|"direct"], "reasoning": 
     }
 
     return finalResponse;
+  }
+
+  async *processQueryStream(query: string): AsyncGenerator<SSEEvent, void, unknown> {
+    console.log(colors.bold(`\n${'═'.repeat(60)}`));
+    console.log(colors.bold.cyan(`🚀 Streaming Query: `) + colors.info(`"${query}"`));
+    console.log(colors.bold(`${'═'.repeat(60)}`));
+
+    try {
+      // 1. Route the query
+      const state: AgentState = { query, finalAnswer: '', data: [] };
+      const routerResult = await this.routerNode(state);
+      const decision = routerResult.decision!;
+      yield { type: 'route', data: decision };
+
+      const tools = decision.tools || ['direct'];
+      const mainTool = tools[0] === 'both' ? 'rag' : tools[0];
+      const data: ResponseData[] = [];
+
+      if (mainTool === 'rag') {
+        // 2a. Weaviate search (fast, no LLM)
+        console.log(colors.rag('\n📚 Executing RAG Agent...'));
+        const searchResult = await ragAgent.search(query);
+
+        if (searchResult.references.length > 0) {
+          data.push(...searchResult.references);
+          yield { type: 'references', data: searchResult.references };
+        }
+
+        // 3. Stream LLM answer
+        for await (const token of geminiClient.generateStream(searchResult.prompt)) {
+          yield { type: 'token', data: token };
+        }
+
+        // 4. Append sources text
+        if (searchResult.references.length > 0) {
+          const refText = searchResult.references.map(ref =>
+            ref.pages.length === 1
+              ? `${ref.displayId}- Page ${ref.pages[0]}`
+              : `${ref.displayId}- Pages ${ref.pages.join(', ')}`
+          ).join(' ');
+          yield { type: 'sources', data: refText };
+        }
+
+        // 4b. If 'both', also get chart
+        if (tools[0] === 'both') {
+          console.log(colors.chart('\n📊 Also executing Chart Tool...'));
+          const chartConfig = await chartTool.execute(query);
+          data.push({ type: 'chart' as const, config: chartConfig });
+          yield { type: 'chart', data: chartConfig };
+        }
+      } else if (mainTool === 'chart') {
+        // 2b. Chart only
+        console.log(colors.chart('\n📊 Executing Chart Tool...'));
+        const chartConfig = await chartTool.execute(query);
+        data.push({ type: 'chart' as const, config: chartConfig });
+        yield { type: 'chart', data: chartConfig };
+        yield { type: 'token', data: 'Here is the requested chart configuration.' };
+      } else {
+        // 2c. Direct Gemini answer
+        console.log(colors.system('\n💬 Providing direct answer...'));
+        const prompt = `Answer the following question directly and concisely: ${query}`;
+        for await (const token of geminiClient.generateStream(prompt)) {
+          yield { type: 'token', data: token };
+        }
+      }
+
+      yield { type: 'done', data: data };
+      console.log(colors.success('\n✅ Query streaming completed'));
+    } catch (error) {
+      console.error(colors.error('❌ Error processing query:'), error);
+      yield { type: 'error', data: error instanceof Error ? error.message : 'Unknown error' };
+    }
   }
 }
 

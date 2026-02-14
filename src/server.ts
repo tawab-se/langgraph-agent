@@ -84,7 +84,32 @@ app.post('/api/upload', upload.single('pdf'), async (req, res) => {
   }
 });
 
-// Main chat endpoint
+// SSE streaming chat endpoint
+app.post('/api/chat/stream', async (req, res) => {
+  const { query } = req.body;
+
+  if (!query || typeof query !== 'string') {
+    return res.status(400).json({ error: 'Query is required' });
+  }
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  try {
+    for await (const event of agent.processQueryStream(query)) {
+      res.write(`event: ${event.type}\ndata: ${JSON.stringify(event.data)}\n\n`);
+    }
+  } catch (error) {
+    console.error('Stream error:', error);
+    res.write(`event: error\ndata: ${JSON.stringify(error instanceof Error ? error.message : 'Unknown error')}\n\n`);
+  }
+
+  res.end();
+});
+
+// Main chat endpoint (non-streaming, kept for API consumers)
 app.post('/api/chat', async (req, res) => {
   const { query } = req.body;
 

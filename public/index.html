@@ -480,94 +480,12 @@
       if (el) el.remove();
     }
 
-    /**
-     * Determine which route was used based on response data
-     */
-    function detectRoute(result) {
-      const data = result.data || [];
-      const hasRag = data.some(d => d.type === 'rag');
-      const hasChart = data.some(d => d.type === 'chart');
-
-      if (hasRag && hasChart) return { key: 'both', label: 'RAG + Chart', icon: '&#9878;' };
-      if (hasRag) return { key: 'rag', label: 'Weaviate RAG', icon: '&#128218;' };
-      if (hasChart) return { key: 'chart', label: 'Chart.js', icon: '&#128202;' };
-      return { key: 'direct', label: 'Gemini LLM', icon: '&#9889;' };
-    }
-
-    function addAssistantMessage(result, elapsed) {
-      const div = document.createElement('div');
-      div.className = 'message assistant';
-      const route = detectRoute(result);
-
-      let html = '<div class="bubble">';
-
-      // Route badge
-      html += '<div class="route-badge route-' + route.key + '">'
-        + '<span class="route-dot"></span>'
-        + 'Answered via ' + route.label
-        + '</div>';
-
-      // Answer text
-      html += '<div class="answer-text">' + escapeHtml(result.answer) + '</div>';
-
-      // RAG references
-      const ragRefs = (result.data || []).filter(d => d.type === 'rag');
-      if (ragRefs.length > 0) {
-        html += '<div class="references-section">'
-          + '<h4><span class="section-icon">&#128218;</span> Sources from Knowledge Base</h4>';
-        ragRefs.forEach(ref => {
-          const pages = ref.pages.join(', ');
-          html += '<span class="ref-item">'
-            + '<span class="ref-id">' + escapeHtml(ref.displayId) + '</span>'
-            + '<span class="ref-file">' + escapeHtml(ref.fileId) + '</span>'
-            + '<span class="ref-pages">Pages ' + escapeHtml(pages) + '</span>'
-            + '</span>';
-        });
-        html += '</div>';
-      }
-
-      // Chart configs
-      const chartRefs = (result.data || []).filter(d => d.type === 'chart');
-      if (chartRefs.length > 0) {
-        html += '<div class="chart-section">'
-          + '<h4><span class="section-icon">&#128202;</span> Chart Configuration</h4>';
-
-        chartRefs.forEach(item => {
-          const cfg = item.config;
-          const json = JSON.stringify(cfg, null, 2);
-
-          // Chart metadata
-          html += '<div class="chart-meta">'
-            + '<div class="chart-meta-item">Type: <span class="val">' + escapeHtml(cfg.type) + '</span></div>'
-            + '<div class="chart-meta-item">Labels: <span class="val">' + cfg.data.labels.length + '</span></div>'
-            + '<div class="chart-meta-item">Datasets: <span class="val">' + cfg.data.datasets.length + '</span></div>'
-            + '</div>';
-
-          html += '<div class="chart-block">'
-            + '<div class="chart-block-header">'
-            + '<span>chart.js config</span>'
-            + '<button class="copy-btn" onclick="copyToClipboard(this)">Copy JSON</button>'
-            + '</div>'
-            + '<pre>' + escapeHtml(json) + '</pre>'
-            + '</div>';
-        });
-
-        html += '</div>';
-      }
-
-      // Response time
-      const timeStr = elapsed < 1000 ? elapsed + 'ms' : (elapsed / 1000).toFixed(1) + 's';
-      html += '<div class="response-meta">'
-        + '<span>' + route.icon + ' ' + route.label + '</span>'
-        + '<span>&#8226;</span>'
-        + '<span>' + timeStr + '</span>'
-        + '</div>';
-
-      html += '</div>';
-      div.innerHTML = html;
-      chatArea.appendChild(div);
-      scrollToBottom();
-    }
+    const ROUTE_MAP = {
+      rag: { key: 'rag', label: 'Weaviate RAG', icon: '&#128218;' },
+      chart: { key: 'chart', label: 'Chart.js', icon: '&#128202;' },
+      direct: { key: 'direct', label: 'Gemini LLM', icon: '&#9889;' },
+      both: { key: 'both', label: 'RAG + Chart', icon: '&#9878;' },
+    };
 
     function addErrorMessage(msg) {
       const div = document.createElement('div');
@@ -575,6 +493,40 @@
       div.innerHTML = '<div class="error-msg">' + escapeHtml(msg) + '</div>';
       chatArea.appendChild(div);
       scrollToBottom();
+    }
+
+    function buildReferencesHtml(refs) {
+      let html = '<div class="references-section">'
+        + '<h4><span class="section-icon">&#128218;</span> Sources from Knowledge Base</h4>';
+      refs.forEach(function(ref) {
+        const pages = ref.pages.join(', ');
+        html += '<span class="ref-item">'
+          + '<span class="ref-id">' + escapeHtml(ref.displayId) + '</span>'
+          + '<span class="ref-file">' + escapeHtml(ref.fileId) + '</span>'
+          + '<span class="ref-pages">Pages ' + escapeHtml(pages) + '</span>'
+          + '</span>';
+      });
+      html += '</div>';
+      return html;
+    }
+
+    function buildChartHtml(cfg) {
+      const json = JSON.stringify(cfg, null, 2);
+      let html = '<div class="chart-section">'
+        + '<h4><span class="section-icon">&#128202;</span> Chart Configuration</h4>'
+        + '<div class="chart-meta">'
+        + '<div class="chart-meta-item">Type: <span class="val">' + escapeHtml(cfg.type) + '</span></div>'
+        + '<div class="chart-meta-item">Labels: <span class="val">' + cfg.data.labels.length + '</span></div>'
+        + '<div class="chart-meta-item">Datasets: <span class="val">' + cfg.data.datasets.length + '</span></div>'
+        + '</div>'
+        + '<div class="chart-block">'
+        + '<div class="chart-block-header">'
+        + '<span>chart.js config</span>'
+        + '<button class="copy-btn" onclick="copyToClipboard(this)">Copy JSON</button>'
+        + '</div>'
+        + '<pre>' + escapeHtml(json) + '</pre>'
+        + '</div></div>';
+      return html;
     }
 
     async function sendQuery() {
@@ -591,22 +543,105 @@
       const startTime = Date.now();
 
       try {
-        const res = await fetch('/api/chat', {
+        const res = await fetch('/api/chat/stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ query }),
         });
 
-        removeLoading();
-
         if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
+          removeLoading();
+          const err = await res.json().catch(function() { return {}; });
           throw new Error(err.message || err.error || 'Request failed');
         }
 
-        const result = await res.json();
+        removeLoading();
+
+        // Create streaming message container
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'message assistant';
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        msgDiv.appendChild(bubble);
+
+        // Route badge placeholder
+        const badgeEl = document.createElement('div');
+        badgeEl.className = 'route-badge route-direct';
+        badgeEl.innerHTML = '<span class="route-dot"></span>Thinking...';
+        bubble.appendChild(badgeEl);
+
+        // Answer text element
+        const answerEl = document.createElement('div');
+        answerEl.className = 'answer-text';
+        bubble.appendChild(answerEl);
+
+        chatArea.appendChild(msgDiv);
+        scrollToBottom();
+
+        let answerText = '';
+        let route = ROUTE_MAP.direct;
+        let allData = [];
+
+        // Parse SSE stream
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          let eventType = '';
+          for (const line of lines) {
+            if (line.startsWith('event: ')) {
+              eventType = line.slice(7).trim();
+            } else if (line.startsWith('data: ') && eventType) {
+              const data = JSON.parse(line.slice(6));
+
+              if (eventType === 'route') {
+                const tool = data.tools ? data.tools[0] : 'direct';
+                route = ROUTE_MAP[tool] || ROUTE_MAP.direct;
+                badgeEl.className = 'route-badge route-' + route.key;
+                badgeEl.innerHTML = '<span class="route-dot"></span>Answered via ' + route.label;
+              } else if (eventType === 'token') {
+                answerText += data;
+                answerEl.textContent = answerText;
+                scrollToBottom();
+              } else if (eventType === 'sources') {
+                answerText += '\n\nSources: ' + data;
+                answerEl.textContent = answerText;
+              } else if (eventType === 'references') {
+                bubble.insertAdjacentHTML('beforeend', buildReferencesHtml(data));
+                allData = allData.concat(data);
+              } else if (eventType === 'chart') {
+                bubble.insertAdjacentHTML('beforeend', buildChartHtml(data));
+                allData.push({ type: 'chart', config: data });
+              } else if (eventType === 'done') {
+                if (Array.isArray(data) && data.length > 0) allData = data;
+              } else if (eventType === 'error') {
+                answerEl.textContent = 'Error: ' + data;
+              }
+
+              eventType = '';
+            }
+          }
+        }
+
+        // Add response time
         const elapsed = Date.now() - startTime;
-        addAssistantMessage(result, elapsed);
+        const timeStr = elapsed < 1000 ? elapsed + 'ms' : (elapsed / 1000).toFixed(1) + 's';
+        const metaDiv = document.createElement('div');
+        metaDiv.className = 'response-meta';
+        metaDiv.innerHTML = '<span>' + route.icon + ' ' + route.label + '</span>'
+          + '<span>&#8226;</span>'
+          + '<span>' + timeStr + '</span>';
+        bubble.appendChild(metaDiv);
+        scrollToBottom();
+
       } catch (err) {
         removeLoading();
         addErrorMessage('Error: ' + err.message);
