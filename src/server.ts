@@ -1,6 +1,8 @@
 import express from 'express';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { mkdirSync, writeFileSync } from 'fs';
+import { randomUUID } from 'crypto';
 import multer from 'multer';
 import { DelegatingAgent } from './agents/delegating.agent.js';
 import { closeWeaviateClient } from './database/weaviate.client.js';
@@ -14,6 +16,10 @@ const app = express();
 const port = parseInt(process.env.PORT || '3000');
 
 app.use(express.json());
+
+// Ensure uploads directory exists
+const uploadsDir = join(__dirname, '../public/uploads');
+mkdirSync(uploadsDir, { recursive: true });
 
 // Serve frontend
 app.use(express.static(join(__dirname, '../public')));
@@ -37,6 +43,19 @@ const upload = multer({
       cb(null, true);
     } else {
       cb(new Error('Only PDF files are allowed'));
+    }
+  },
+});
+
+const IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/webp'];
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, cb) => {
+    if (IMAGE_MIMES.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only JPEG, PNG, and WebP images are allowed'));
     }
   },
 });
@@ -84,12 +103,33 @@ app.post('/api/upload', upload.single('pdf'), async (req, res) => {
   }
 });
 
+// Image upload endpoint (for chat attachment)
+app.post('/api/upload/image', imageUpload.single('image'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No image file provided' });
+  }
+
+  const ext = req.file.originalname.split('.').pop() || 'jpg';
+  const filename = `${randomUUID()}.${ext}`;
+  writeFileSync(join(uploadsDir, filename), req.file.buffer);
+
+  return res.json({ url: `/uploads/${filename}` });
+});
+
 // SSE streaming chat endpoint
 app.post('/api/chat/stream', async (req, res) => {
-  const { query } = req.body;
+  const { query, imageUrl } = req.body;
 
   if (!query || typeof query !== 'string') {
     return res.status(400).json({ error: 'Query is required' });
+  }
+
+  // If an image was attached, build the full public URL for Pollinations
+  let fullImageUrl: string | undefined;
+  if (imageUrl) {
+    const host = req.get('host') || `localhost:${port}`;
+    const protocol = req.get('x-forwarded-proto') || req.protocol;
+    fullImageUrl = `${protocol}://${host}${imageUrl}`;
   }
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -105,7 +145,7 @@ app.post('/api/chat/stream', async (req, res) => {
   res.write(`:${' '.repeat(4096)}\n\n`);
 
   try {
-    for await (const event of agent.processQueryStream(query)) {
+    for await (const event of agent.processQueryStream(query, fullImageUrl)) {
       res.write(`event: ${event.type}\ndata: ${JSON.stringify(event.data)}\n\n`);
     }
   } catch (error) {
@@ -144,7 +184,7 @@ app.use((err: any, _req: express.Request, res: express.Response, next: express.N
     }
     return res.status(400).json({ error: err.message });
   }
-  if (err.message === 'Only PDF files are allowed') {
+  if (err.message === 'Only PDF files are allowed' || err.message === 'Only JPEG, PNG, and WebP images are allowed') {
     return res.status(415).json({ error: err.message });
   }
   next(err);

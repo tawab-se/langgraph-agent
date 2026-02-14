@@ -134,6 +134,13 @@
     }
     .route-badge.route-both .route-dot { background: #f0b849; }
 
+    .route-badge.route-image {
+      background: #2a1a2e;
+      color: #f778ba;
+      border: 1px solid #f778ba44;
+    }
+    .route-badge.route-image .route-dot { background: #f778ba; }
+
     /* Answer text */
     .answer-text {
       margin-bottom: 2px;
@@ -246,6 +253,64 @@
       color: #c9d1d9;
       overflow-x: auto;
       font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+
+    /* Generated Image */
+    .image-section {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #30363d;
+    }
+    .image-section h4 {
+      font-size: 12px;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .image-section img {
+      max-width: 100%;
+      border-radius: 8px;
+      border: 1px solid #30363d;
+    }
+    .image-section .image-caption {
+      font-size: 12px;
+      color: #8b949e;
+      margin-top: 8px;
+      font-style: italic;
+    }
+
+    /* Image attachment preview */
+    .image-attachment-preview {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 8px 0 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .image-attachment-preview img {
+      width: 48px;
+      height: 48px;
+      object-fit: cover;
+      border-radius: 6px;
+      border: 1px solid #30363d;
+    }
+    .image-attachment-preview .attachment-name {
+      font-size: 12px;
+      color: #8b949e;
+      flex: 1;
+    }
+    .image-attachment-preview .remove-attachment {
+      background: none;
+      border: none;
+      color: #f85149;
+      font-size: 16px;
+      cursor: pointer;
+      padding: 4px;
     }
 
     /* Timing */
@@ -403,7 +468,7 @@
     <span class="header-icon">&#129302;</span>
     <div>
       <h1>LangGraph Agent</h1>
-      <p>Weaviate RAG &bull; Chart.js &bull; Gemini</p>
+      <p>Weaviate RAG &bull; Chart.js &bull; Gemini &bull; Pollinations.ai</p>
     </div>
   </div>
 
@@ -416,15 +481,21 @@
         <button class="example-btn" onclick="askExample(this)">Show me a bar chart of sales</button>
         <button class="example-btn" onclick="askExample(this)">What are the ProductX pricing tiers?</button>
         <button class="example-btn" onclick="askExample(this)">What is 25 + 17?</button>
+        <button class="example-btn" onclick="askExample(this)">Generate an image of a sunset over mountains</button>
       </div>
     </div>
   </div>
 
   <div class="input-area">
+    <div id="attachmentPreview" class="image-attachment-preview" style="display:none"></div>
     <div class="input-wrapper">
       <input type="file" id="fileInput" accept=".pdf" />
+      <input type="file" id="imageInput" accept="image/jpeg,image/png,image/webp" style="display:none" />
       <button class="upload-btn" id="uploadBtn" onclick="document.getElementById('fileInput').click()" title="Upload PDF">
         &#128206; PDF
+      </button>
+      <button class="upload-btn" id="imageBtn" onclick="document.getElementById('imageInput').click()" title="Attach image for editing">
+        &#128247; IMG
       </button>
       <input
         type="text"
@@ -485,6 +556,7 @@
       chart: { key: 'chart', label: 'Chart.js', icon: '&#128202;' },
       direct: { key: 'direct', label: 'Gemini LLM', icon: '&#9889;' },
       both: { key: 'both', label: 'RAG + Chart', icon: '&#9878;' },
+      image: { key: 'image', label: 'Pollinations.ai', icon: '&#127912;' },
     };
 
     function addErrorMessage(msg) {
@@ -529,15 +601,87 @@
       return html;
     }
 
+    function buildImageHtml(data) {
+      return '<div class="image-section">'
+        + '<h4>&#127912; Generated Image</h4>'
+        + '<img src="' + escapeHtml(data.url) + '" alt="' + escapeHtml(data.prompt) + '" loading="lazy" />'
+        + '<div class="image-caption">' + escapeHtml(data.prompt) + ' (model: ' + escapeHtml(data.model) + ')</div>'
+        + '</div>';
+    }
+
+    // --- Image Attachment State ---
+    let pendingImageUrl = null;
+    const attachmentPreview = document.getElementById('attachmentPreview');
+    const imageInput = document.getElementById('imageInput');
+    const imageBtn = document.getElementById('imageBtn');
+
+    imageInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      imageInput.value = '';
+      await attachImage(file);
+    });
+
+    async function attachImage(file) {
+      if (!file.type.startsWith('image/')) {
+        showToast('Only image files (JPEG, PNG, WebP) are supported', 'error');
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        showToast('Image too large. Maximum size is 10 MB.', 'error');
+        return;
+      }
+
+      imageBtn.disabled = true;
+      showToast('Uploading image...', 'uploading', 0);
+
+      const formData = new FormData();
+      formData.append('image', file);
+
+      try {
+        const res = await fetch('/api/upload/image', { method: 'POST', body: formData });
+        dismissToast();
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || err.error || 'Upload failed');
+        }
+        const result = await res.json();
+        pendingImageUrl = result.url;
+
+        // Show preview
+        attachmentPreview.style.display = 'flex';
+        attachmentPreview.innerHTML = '<img src="' + escapeHtml(result.url) + '" />'
+          + '<span class="attachment-name">' + escapeHtml(file.name) + ' attached</span>'
+          + '<button class="remove-attachment" onclick="clearAttachment()" title="Remove">&#10005;</button>';
+        queryInput.placeholder = 'Describe what to do with this image...';
+        queryInput.focus();
+      } catch (err) {
+        dismissToast();
+        showToast('Image upload failed: ' + err.message, 'error', 5000);
+      } finally {
+        imageBtn.disabled = false;
+      }
+    }
+
+    function clearAttachment() {
+      pendingImageUrl = null;
+      attachmentPreview.style.display = 'none';
+      attachmentPreview.innerHTML = '';
+      queryInput.placeholder = 'Type your question...';
+    }
+
     async function sendQuery() {
       const query = queryInput.value.trim();
       if (!query) return;
+
+      const imageUrl = pendingImageUrl;
+      clearAttachment();
 
       queryInput.value = '';
       sendBtn.disabled = true;
       queryInput.disabled = true;
 
-      addUserMessage(query);
+      addUserMessage(imageUrl ? query + ' [image attached]' : query);
       addLoadingMessage();
 
       const startTime = Date.now();
@@ -546,7 +690,7 @@
         const res = await fetch('/api/chat/stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query }),
+          body: JSON.stringify({ query, imageUrl }),
         });
 
         if (!res.ok) {
@@ -622,6 +766,9 @@
               } else if (eventType === 'chart') {
                 bubble.insertAdjacentHTML('beforeend', buildChartHtml(data));
                 allData.push({ type: 'chart', config: data });
+              } else if (eventType === 'image') {
+                bubble.insertAdjacentHTML('beforeend', buildImageHtml(data));
+                allData.push({ type: 'image', url: data.url, prompt: data.prompt });
               } else if (eventType === 'done') {
                 if (Array.isArray(data) && data.length > 0) allData = data;
               } else if (eventType === 'error') {
@@ -782,14 +929,19 @@
       dragCounter = 0;
       dragOverlay.classList.remove('active');
       const files = e.dataTransfer.files;
-      if (files.length > 0 && files[0].type === 'application/pdf') {
-        uploadFile(files[0]);
-      } else if (files.length > 0) {
-        showToast('Only PDF files are supported', 'error');
+      if (files.length > 0) {
+        const file = files[0];
+        if (file.type === 'application/pdf') {
+          uploadFile(file);
+        } else if (file.type.startsWith('image/')) {
+          attachImage(file);
+        } else {
+          showToast('Only PDF and image files are supported', 'error');
+        }
       }
     });
   </script>
 
-  <div class="drag-overlay" id="dragOverlay">Drop PDF file here to upload</div>
+  <div class="drag-overlay" id="dragOverlay">Drop PDF or image file here</div>
 </body>
 </html>

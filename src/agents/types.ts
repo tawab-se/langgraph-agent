@@ -35,7 +35,14 @@ export interface RAGReference {
   content?: string;
 }
 
-export type ResponseData = ChartReference | RAGReference;
+export interface ImageReference {
+  type: 'image';
+  url: string;
+  prompt: string;
+  model: string;
+}
+
+export type ResponseData = ChartReference | RAGReference | ImageReference;
 
 export interface StreamingResponse {
   answer: string; // Streaming text chunks
@@ -48,12 +55,13 @@ export interface RAGResult {
 }
 
 export interface ToolDecision {
-  tools: ('rag' | 'chart' | 'direct' | 'both')[];
+  tools: ('rag' | 'chart' | 'direct' | 'both' | 'image')[];
   reasoning: string;
 }
 
 export interface AgentState {
   query: string;
+  imageUrl?: string;
   decision?: ToolDecision;
   ragResults?: RAGResult;
   chartConfig?: ChartJsConfig;

@@ -4,9 +4,10 @@ import { ragAgent } from './rag.agent.js';
 import { chartTool } from '../tools/chart.tool.js';
 import { geminiClient } from '../llm/gemini.client.js';
 import { colors, printRouting } from '../utils/terminal.ui.js';
+import { imageTool } from '../tools/image.tool.js';
 
 export interface SSEEvent {
-  type: 'thinking' | 'route' | 'token' | 'references' | 'chart' | 'sources' | 'done' | 'error';
+  type: 'thinking' | 'route' | 'token' | 'references' | 'chart' | 'image' | 'sources' | 'done' | 'error';
   data: any;
 }
 export class DelegatingAgent {
@@ -49,6 +50,7 @@ export class DelegatingAgent {
     workflow.addNode('rag', this.ragNode.bind(this));
     workflow.addNode('chart', this.chartNode.bind(this));
     workflow.addNode('direct', this.directNode.bind(this));
+    workflow.addNode('image', this.imageNode.bind(this));
     workflow.addNode('aggregator', this.aggregatorNode.bind(this));
 
     // Add edges
@@ -62,6 +64,7 @@ export class DelegatingAgent {
         rag: 'rag' as any,
         chart: 'chart' as any,
         direct: 'direct' as any,
+        image: 'image' as any,
         both: 'rag' as any, // For 'both', we go to rag first, then chart
       }
     );
@@ -69,6 +72,7 @@ export class DelegatingAgent {
     workflow.addEdge('rag' as any, 'aggregator' as any);
     workflow.addEdge('chart' as any, 'aggregator' as any);
     workflow.addEdge('direct' as any, 'aggregator' as any);
+    workflow.addEdge('image' as any, 'aggregator' as any);
     workflow.addEdge('aggregator' as any, END as any);
 
     return workflow.compile();
@@ -92,6 +96,10 @@ AVAILABLE ROUTES:
   configuration, visualization setup, or mock chart data.
 - both: Use when the user needs information from the knowledge base AND a chart
   or visualization built from that information.
+- image: Use when the user asks to generate, create, draw, or design an image,
+  picture, photo, illustration, or artwork. Also use when the user wants to edit,
+  modify, or transform an existing image. Examples: "generate an image of a sunset",
+  "create a portrait", "draw a futuristic city", "make this image look like a painting".
 - direct: Use when the question is about general knowledge, concepts, how things
   work, coding help, math, creative writing, or anything that does NOT require
   looking up specific stored documents. Examples: "how does AI work",
@@ -101,12 +109,13 @@ CRITICAL RULES:
 - General knowledge questions should ALWAYS go to 'direct'.
 - Only use 'rag' when the user clearly wants information from their stored documents/knowledge base.
 - If the question is about a general topic (technology, science, programming concepts), use 'direct'.
+- If the user asks to generate, create, or edit an image/picture/photo, ALWAYS use 'image'.
 - If unsure, prefer 'direct' over 'rag' — the LLM can answer most questions well.
 
 Query:
 "${state.query}"
 
-Respond with JSON only: {"tools": ["rag"|"chart"|"both"|"direct"], "reasoning": "..."}`;
+Respond with JSON only: {"tools": ["rag"|"chart"|"both"|"direct"|"image"], "reasoning": "..."}`;
 
     const response = await geminiClient.generate(prompt);
     
@@ -117,10 +126,12 @@ Respond with JSON only: {"tools": ["rag"|"chart"|"both"|"direct"], "reasoning": 
       const tools = Array.isArray(parsed.tools) ? parsed.tools : [parsed.tools || 'rag'];
       decision = { tools, reasoning: parsed.reasoning || 'Routed by LLM' };
     } catch {
-      // Fallback: RAG-first for informational queries
-      if (response.toLowerCase().includes('chart')) {
+      // Fallback: keyword-based routing
+      if (response.toLowerCase().includes('image')) {
+        decision = { tools: ['image'], reasoning: 'Query mentions image generation' };
+      } else if (response.toLowerCase().includes('chart')) {
         decision = { tools: ['chart'], reasoning: 'Query mentions visualization' };
-      } else if (response.toLowerCase().includes('direct') || 
+      } else if (response.toLowerCase().includes('direct') ||
                  /\d+\s*[\+\-\*\/]\s*\d+/.test(state.query)) {
         decision = { tools: ['direct'], reasoning: 'Math/code task' };
       } else {
@@ -187,6 +198,17 @@ Respond with JSON only: {"tools": ["rag"|"chart"|"both"|"direct"], "reasoning": 
     );
     
     return { finalAnswer: answer };
+  }
+
+  private async imageNode(state: AgentState): Promise<Partial<AgentState>> {
+    console.log(colors.info('\n🎨 Executing Image Tool...'));
+
+    const result = await imageTool.execute(state.query, state.imageUrl);
+
+    return {
+      finalAnswer: `Here is the generated image for: "${state.query}"`,
+      data: [{ type: 'image' as const, url: result.url, prompt: result.prompt, model: result.model }],
+    };
   }
 
   private async aggregatorNode(state: AgentState): Promise<Partial<AgentState>> {
@@ -292,19 +314,28 @@ Respond with JSON only: {"tools": ["rag"|"chart"|"both"|"direct"], "reasoning": 
     return finalResponse;
   }
 
-  async *processQueryStream(query: string): AsyncGenerator<SSEEvent, void, unknown> {
+  async *processQueryStream(query: string, imageUrl?: string): AsyncGenerator<SSEEvent, void, unknown> {
     console.log(colors.bold(`\n${'═'.repeat(60)}`));
     console.log(colors.bold.cyan(`🚀 Streaming Query: `) + colors.info(`"${query}"`));
+    if (imageUrl) console.log(colors.info(`🖼️  With image: ${imageUrl}`));
     console.log(colors.bold(`${'═'.repeat(60)}`));
 
     try {
       // 0. Yield immediately so the client gets data before the router LLM call
-      yield { type: 'thinking', data: 'Routing query...' };
+      yield { type: 'thinking', data: imageUrl ? 'Processing image...' : 'Routing query...' };
 
-      // 1. Route the query
-      const state: AgentState = { query, finalAnswer: '', data: [] };
-      const routerResult = await this.routerNode(state);
-      const decision = routerResult.decision!;
+      let decision: ToolDecision;
+
+      // If an image is attached, skip the router LLM call — always route to image
+      if (imageUrl) {
+        decision = { tools: ['image'], reasoning: 'Image attached by user' };
+      } else {
+        // 1. Route the query via LLM
+        const state: AgentState = { query, finalAnswer: '', data: [] };
+        const routerResult = await this.routerNode(state);
+        decision = routerResult.decision!;
+      }
+
       yield { type: 'route', data: decision };
 
       const tools = decision.tools || ['direct'];
@@ -350,6 +381,14 @@ Respond with JSON only: {"tools": ["rag"|"chart"|"both"|"direct"], "reasoning": 
         data.push({ type: 'chart' as const, config: chartConfig });
         yield { type: 'chart', data: chartConfig };
         yield { type: 'token', data: 'Here is the requested chart configuration.' };
+      } else if (mainTool === 'image') {
+        // 2c. Image generation/editing
+        console.log(colors.info('\n🎨 Executing Image Tool...'));
+        yield { type: 'thinking', data: 'Generating image...' };
+        const result = await imageTool.execute(query, imageUrl);
+        data.push({ type: 'image' as const, url: result.url, prompt: result.prompt, model: result.model });
+        yield { type: 'image', data: result };
+        yield { type: 'token', data: `Here is the generated image for: "${query}"` };
       } else {
         // 2c. Direct Gemini answer
         console.log(colors.system('\n💬 Providing direct answer...'));
