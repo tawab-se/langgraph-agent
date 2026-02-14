@@ -669,7 +669,7 @@
       var absUrl = imageUrl.startsWith('http') ? imageUrl : window.location.origin + imageUrl;
 
       puter.ai.txt2img(prompt, {
-        model: 'black-forest-labs/FLUX.1-kontext-pro',
+        model: 'togetherai:black-forest-labs/flux.1-kontext-pro',
         image_url: absUrl
       }).then(function(imgEl) {
         var el = document.getElementById(imgId);
