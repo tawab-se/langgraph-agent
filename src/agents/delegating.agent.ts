@@ -6,7 +6,7 @@ import { geminiClient } from '../llm/gemini.client.js';
 import { colors, printRouting } from '../utils/terminal.ui.js';
 
 export interface SSEEvent {
-  type: 'route' | 'token' | 'references' | 'chart' | 'sources' | 'done' | 'error';
+  type: 'thinking' | 'route' | 'token' | 'references' | 'chart' | 'sources' | 'done' | 'error';
   data: any;
 }
 export class DelegatingAgent {
@@ -298,6 +298,9 @@ Respond with JSON only: {"tools": ["rag"|"chart"|"both"|"direct"], "reasoning": 
     console.log(colors.bold(`${'═'.repeat(60)}`));
 
     try {
+      // 0. Yield immediately so the client gets data before the router LLM call
+      yield { type: 'thinking', data: 'Routing query...' };
+
       // 1. Route the query
       const state: AgentState = { query, finalAnswer: '', data: [] };
       const routerResult = await this.routerNode(state);
