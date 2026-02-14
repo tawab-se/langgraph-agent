@@ -7,7 +7,7 @@ import { geminiClient } from '../llm/gemini.client.js';
 import { colors, printRouting } from '../utils/terminal.ui.js';
 
 export interface SSEEvent {
-  type: 'thinking' | 'route' | 'token' | 'references' | 'chart' | 'image' | 'sources' | 'done' | 'error';
+  type: 'thinking' | 'route' | 'token' | 'references' | 'chart' | 'image' | 'image-edit' | 'sources' | 'done' | 'error';
   data: any;
 }
 export class DelegatingAgent {
@@ -203,7 +203,7 @@ Respond with JSON only: {"tools": ["rag"|"chart"|"both"|"direct"|"image"], "reas
   private async imageNode(state: AgentState): Promise<Partial<AgentState>> {
     console.log(colors.info('\n🎨 Executing Image Tool...'));
 
-    const result = await imageTool.execute(state.query, state.imageUrl);
+    const result = await imageTool.execute(state.query);
 
     return {
       finalAnswer: `Here is the generated image for: "${state.query}"`,
@@ -382,12 +382,19 @@ Respond with JSON only: {"tools": ["rag"|"chart"|"both"|"direct"|"image"], "reas
         yield { type: 'chart', data: chartConfig };
         yield { type: 'token', data: 'Here is the requested chart configuration.' };
       } else if (mainTool === 'image') {
-        // 2c. Image generation/editing
-        console.log(colors.info('\n🎨 Executing Image Tool...'));
-        const result = await imageTool.execute(query, imageUrl);
-        data.push({ type: 'image' as const, url: result.url, prompt: result.prompt, model: result.model });
-        yield { type: 'image', data: result };
-        yield { type: 'token', data: `Here is the generated image for: "${query}"` };
+        if (imageUrl) {
+          // Image editing — delegate to client-side Puter.js (FLUX.1 Kontext)
+          console.log(colors.info('\n🎨 Image editing via Puter.js (client-side)...'));
+          yield { type: 'image-edit', data: { prompt: query, imageUrl } };
+          yield { type: 'token', data: `Editing image with prompt: "${query}"` };
+        } else {
+          // Text-to-image — server-side Pollinations flux
+          console.log(colors.info('\n🎨 Executing Image Tool...'));
+          const result = await imageTool.execute(query);
+          data.push({ type: 'image' as const, url: result.url, prompt: result.prompt, model: result.model });
+          yield { type: 'image', data: result };
+          yield { type: 'token', data: `Here is the generated image for: "${query}"` };
+        }
       } else {
         // 2c. Direct Gemini answer
         console.log(colors.system('\n💬 Providing direct answer...'));

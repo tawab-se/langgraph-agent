@@ -7,17 +7,15 @@ export interface ImageResult {
 const POLLINATIONS_BASE = 'https://gen.pollinations.ai/image';
 
 /**
- * Image Tool - Generates or edits images via Pollinations.ai
- * - Text-to-image: uses flux model
- * - Image editing (with input image URL): uses kontext model
+ * Image Tool - Text-to-image generation via Pollinations.ai (flux model)
+ * Image editing is handled client-side via Puter.js FLUX.1 Kontext.
  */
 export class ImageTool {
-  static async execute(prompt: string, imageUrl?: string): Promise<ImageResult> {
+  static async execute(prompt: string): Promise<ImageResult> {
     const encodedPrompt = encodeURIComponent(prompt);
-    const model = imageUrl ? 'kontext' : 'flux';
 
     const params = new URLSearchParams({
-      model,
+      model: 'flux',
       width: '1024',
       height: '1024',
       nologo: 'true',
@@ -25,15 +23,11 @@ export class ImageTool {
       key: process.env.POLLINATIONS_API_KEY || '',
     });
 
-    if (imageUrl) {
-      params.set('image', imageUrl);
-    }
-
     const url = `${POLLINATIONS_BASE}/${encodedPrompt}?${params.toString()}`;
 
     // Pollinations generates the image on the first GET request.
     // The URL itself IS the image — the browser loads it via <img src>.
-    return { url, prompt, model };
+    return { url, prompt, model: 'flux' };
   }
 }
 

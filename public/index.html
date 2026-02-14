@@ -482,13 +482,14 @@
       .chart-meta { flex-wrap: wrap; }
     }
   </style>
+  <script src="https://js.puter.com/v2/"></script>
 </head>
 <body>
   <div class="header">
     <span class="header-icon">&#129302;</span>
     <div>
       <h1>LangGraph Agent</h1>
-      <p>Weaviate RAG &bull; Chart.js &bull; Gemini &bull; Pollinations.ai</p>
+      <p>Weaviate RAG &bull; Chart.js &bull; Gemini &bull; Pollinations.ai &bull; Puter.js</p>
     </div>
   </div>
 
@@ -577,6 +578,7 @@
       direct: { key: 'direct', label: 'Gemini LLM', icon: '&#9889;' },
       both: { key: 'both', label: 'RAG + Chart', icon: '&#9878;' },
       image: { key: 'image', label: 'Pollinations.ai', icon: '&#127912;' },
+      'image-edit': { key: 'image', label: 'Puter.js Kontext', icon: '&#127912;' },
     };
 
     function addErrorMessage(msg) {
@@ -651,6 +653,37 @@
         }
       };
       img.src = url;
+    }
+
+    function buildImageEditHtml(imgId) {
+      return '<div class="image-section">'
+        + '<h4>&#127912; Edited Image</h4>'
+        + '<div id="' + imgId + '-loader" class="image-loading">'
+        + '<div class="spinner"></div><div>Editing image via Puter.js... this may take 10-30 seconds</div></div>'
+        + '<img id="' + imgId + '" style="display:none" />'
+        + '</div>';
+    }
+
+    function runPuterImageEdit(prompt, imageUrl, imgId) {
+      // Convert relative URL to absolute for Puter.js
+      var absUrl = imageUrl.startsWith('http') ? imageUrl : window.location.origin + imageUrl;
+
+      puter.ai.txt2img(prompt, {
+        model: 'black-forest-labs/FLUX.1-kontext-pro',
+        image_url: absUrl
+      }).then(function(imgEl) {
+        var el = document.getElementById(imgId);
+        var loader = document.getElementById(imgId + '-loader');
+        if (el) {
+          el.src = imgEl.src;
+          el.style.display = 'block';
+        }
+        if (loader) loader.remove();
+        scrollToBottom();
+      }).catch(function(err) {
+        var loader = document.getElementById(imgId + '-loader');
+        if (loader) loader.innerHTML = 'Image editing failed: ' + escapeHtml(String(err.message || err));
+      });
     }
 
     // --- Image Attachment State ---
@@ -815,6 +848,14 @@
                 bubble.insertAdjacentHTML('beforeend', buildImageHtml(data, imgId));
                 loadGeneratedImage(data.url, imgId);
                 allData.push({ type: 'image', url: data.url, prompt: data.prompt });
+              } else if (eventType === 'image-edit') {
+                var editImgId = 'edit-img-' + Date.now();
+                route = ROUTE_MAP['image-edit'];
+                badgeEl.className = 'route-badge route-image';
+                badgeEl.innerHTML = '<span class="route-dot"></span>Answered via ' + route.label;
+                bubble.insertAdjacentHTML('beforeend', buildImageEditHtml(editImgId));
+                runPuterImageEdit(data.prompt, data.imageUrl, editImgId);
+                scrollToBottom();
               } else if (eventType === 'done') {
                 if (Array.isArray(data) && data.length > 0) allData = data;
               } else if (eventType === 'error') {
