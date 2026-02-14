@@ -95,11 +95,18 @@ app.post('/api/chat/stream', async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');         // disable nginx/proxy buffering
+  res.setHeader('Content-Encoding', 'none');         // prevent proxy compression
   res.flushHeaders();
+
+  // Disable Nagle's algorithm so each write() goes out immediately
+  res.socket?.setNoDelay(true);
 
   try {
     for await (const event of agent.processQueryStream(query)) {
-      res.write(`event: ${event.type}\ndata: ${JSON.stringify(event.data)}\n\n`);
+      const ok = res.write(`event: ${event.type}\ndata: ${JSON.stringify(event.data)}\n\n`);
+      // If the internal buffer is full, wait for it to drain
+      if (!ok) await new Promise<void>(resolve => res.once('drain', resolve));
     }
   } catch (error) {
     console.error('Stream error:', error);
