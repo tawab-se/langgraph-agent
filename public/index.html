@@ -208,10 +208,24 @@
       gap: 6px;
     }
     .chart-section h4 .section-icon { font-size: 14px; }
+    .chart-canvas-wrapper {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 12px;
+      position: relative;
+      max-height: 400px;
+    }
+    .chart-canvas-wrapper canvas {
+      width: 100% !important;
+      max-height: 360px;
+    }
     .chart-meta {
       display: flex;
       gap: 12px;
       margin-bottom: 10px;
+      flex-wrap: wrap;
     }
     .chart-meta-item {
       display: flex;
@@ -221,6 +235,21 @@
       color: #8b949e;
     }
     .chart-meta-item span.val { color: #d2a8ff; font-weight: 500; }
+    .chart-json-toggle {
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #8b949e;
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      margin-bottom: 8px;
+    }
+    .chart-json-toggle:hover { border-color: #58a6ff; color: #58a6ff; }
     .chart-block {
       background: #0d1117;
       border: 1px solid #30363d;
@@ -662,9 +691,19 @@
       .input-area { padding: 12px 16px; }
       .message.user .bubble { max-width: 85%; }
       .chart-meta { flex-wrap: wrap; }
+      .chart-canvas-wrapper { padding: 10px; max-height: 280px; }
+      .chart-canvas-wrapper canvas { max-height: 250px; }
+      .about-overlay { padding: 12px; }
+      .about-modal { padding: 20px; max-height: 90vh; }
+      .about-modal h2 { font-size: 18px; }
+      .model-card { padding: 12px; }
+      .flow-step-content { padding-left: 18px; }
+      .about-btn { padding: 5px 10px; font-size: 11px; }
+      .header { padding: 12px 16px; }
     }
   </style>
   <script src="https://js.puter.com/v2/"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 </head>
 <body>
   <div class="header">
@@ -787,16 +826,19 @@
       return html;
     }
 
-    function buildChartHtml(cfg) {
+    function buildChartHtml(cfg, canvasId) {
       const json = JSON.stringify(cfg, null, 2);
+      const jsonBlockId = canvasId + '-json';
       let html = '<div class="chart-section">'
-        + '<h4><span class="section-icon">&#128202;</span> Chart Configuration</h4>'
+        + '<h4><span class="section-icon">&#128202;</span> Chart</h4>'
         + '<div class="chart-meta">'
         + '<div class="chart-meta-item">Type: <span class="val">' + escapeHtml(cfg.type) + '</span></div>'
         + '<div class="chart-meta-item">Labels: <span class="val">' + cfg.data.labels.length + '</span></div>'
         + '<div class="chart-meta-item">Datasets: <span class="val">' + cfg.data.datasets.length + '</span></div>'
         + '</div>'
-        + '<div class="chart-block">'
+        + '<div class="chart-canvas-wrapper"><canvas id="' + canvasId + '"></canvas></div>'
+        + '<button class="chart-json-toggle" onclick="toggleChartJson(\'' + jsonBlockId + '\', this)">&#9660; Show JSON</button>'
+        + '<div id="' + jsonBlockId + '" class="chart-block" style="display:none">'
         + '<div class="chart-block-header">'
         + '<span>chart.js config</span>'
         + '<button class="copy-btn" onclick="copyToClipboard(this)">Copy JSON</button>'
@@ -804,6 +846,52 @@
         + '<pre>' + escapeHtml(json) + '</pre>'
         + '</div></div>';
       return html;
+    }
+
+    function toggleChartJson(blockId, btn) {
+      var block = document.getElementById(blockId);
+      if (!block) return;
+      if (block.style.display === 'none') {
+        block.style.display = 'block';
+        btn.innerHTML = '&#9650; Hide JSON';
+      } else {
+        block.style.display = 'none';
+        btn.innerHTML = '&#9660; Show JSON';
+      }
+    }
+
+    function renderChart(canvasId, cfg) {
+      var canvas = document.getElementById(canvasId);
+      if (!canvas || typeof Chart === 'undefined') return;
+      try {
+        // Deep clone to avoid mutating original config
+        var config = JSON.parse(JSON.stringify(cfg));
+        // Ensure responsive behavior
+        if (!config.options) config.options = {};
+        config.options.responsive = true;
+        config.options.maintainAspectRatio = true;
+        // Dark theme defaults
+        if (!config.options.plugins) config.options.plugins = {};
+        if (!config.options.plugins.legend) config.options.plugins.legend = {};
+        if (!config.options.plugins.legend.labels) config.options.plugins.legend.labels = {};
+        config.options.plugins.legend.labels.color = '#c9d1d9';
+        // Only apply axis styles for chart types that use scales (not pie/doughnut/radar/polarArea)
+        var noScaleTypes = ['pie', 'doughnut', 'radar', 'polarArea'];
+        if (noScaleTypes.indexOf(config.type) === -1) {
+          if (!config.options.scales) config.options.scales = {};
+          ['x', 'y'].forEach(function(axis) {
+            if (!config.options.scales[axis]) config.options.scales[axis] = {};
+            if (!config.options.scales[axis].ticks) config.options.scales[axis].ticks = {};
+            config.options.scales[axis].ticks.color = '#8b949e';
+            if (!config.options.scales[axis].grid) config.options.scales[axis].grid = {};
+            config.options.scales[axis].grid.color = '#21262d';
+          });
+        }
+        new Chart(canvas.getContext('2d'), config);
+      } catch (err) {
+        console.error('Chart render error:', err);
+        canvas.parentElement.innerHTML = '<div style="color:#f85149;font-size:12px;padding:12px">Failed to render chart. JSON config is available below.</div>';
+      }
     }
 
     function buildImageHtml(data, imgId) {
@@ -1024,7 +1112,9 @@
                 bubble.insertAdjacentHTML('beforeend', buildReferencesHtml(data));
                 allData = allData.concat(data);
               } else if (eventType === 'chart') {
-                bubble.insertAdjacentHTML('beforeend', buildChartHtml(data));
+                var chartCanvasId = 'chart-' + Date.now();
+                bubble.insertAdjacentHTML('beforeend', buildChartHtml(data, chartCanvasId));
+                renderChart(chartCanvasId, data);
                 allData.push({ type: 'chart', config: data });
               } else if (eventType === 'image') {
                 var imgId = 'gen-img-' + Date.now();
@@ -1263,8 +1353,9 @@
           <p>
             When a chart or visualization is requested, Gemini generates a valid
             <code>Chart.js</code> JSON configuration (type, labels, datasets, colors).
-            The config is returned to the UI where it can be copied and used directly
-            with the Chart.js library.
+            The chart is rendered visually inline in the chat using the Chart.js library,
+            with dark-theme styling applied automatically. The raw JSON config can also
+            be expanded and copied via the "Show JSON" toggle below each chart.
           </p>
         </div>
 
