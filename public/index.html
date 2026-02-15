@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/styles.css">
   <script src="https://js.puter.com/v2/"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
   <div class="header">
@@ -55,6 +56,12 @@
   </div>
 
   <script>
+    // Configure marked.js for safe markdown rendering
+    marked.setOptions({
+      breaks: true,
+      gfm: true,
+    });
+
     const chatArea = document.getElementById('chatArea');
     const queryInput = document.getElementById('queryInput');
     const sendBtn = document.getElementById('sendBtn');
@@ -406,11 +413,11 @@
                 badgeEl.innerHTML = '<span class="route-dot"></span>Answered via ' + route.label;
               } else if (eventType === 'token') {
                 answerText += data;
-                answerEl.textContent = answerText;
+                answerEl.innerHTML = marked.parse(answerText);
                 scrollToBottom();
               } else if (eventType === 'sources') {
                 answerText += '\n\nSources: ' + data;
-                answerEl.textContent = answerText;
+                answerEl.innerHTML = marked.parse(answerText);
               } else if (eventType === 'references') {
                 bubble.insertAdjacentHTML('beforeend', buildReferencesHtml(data));
                 allData = allData.concat(data);

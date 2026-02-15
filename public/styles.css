@@ -77,7 +77,6 @@ body {
   border-radius: 4px 16px 16px 16px;
   font-size: 14px;
   line-height: 1.7;
-  white-space: pre-wrap;
   word-wrap: break-word;
 }
 
@@ -134,10 +133,83 @@ body {
 }
 .route-badge.route-image .route-dot { background: #f778ba; }
 
-/* Answer text */
+/* Answer text — markdown rendered */
 .answer-text {
   margin-bottom: 2px;
 }
+.answer-text p { margin: 0 0 12px 0; }
+.answer-text p:last-child { margin-bottom: 0; }
+.answer-text h1, .answer-text h2, .answer-text h3,
+.answer-text h4, .answer-text h5, .answer-text h6 {
+  color: #f0f6fc;
+  margin: 16px 0 8px 0;
+  line-height: 1.3;
+}
+.answer-text h1 { font-size: 1.4em; }
+.answer-text h2 { font-size: 1.25em; }
+.answer-text h3 { font-size: 1.1em; }
+.answer-text h4 { font-size: 1em; }
+.answer-text strong { color: #f0f6fc; }
+.answer-text a { color: #58a6ff; text-decoration: none; }
+.answer-text a:hover { text-decoration: underline; }
+.answer-text ul, .answer-text ol {
+  margin: 8px 0 12px 0;
+  padding-left: 24px;
+}
+.answer-text li { margin-bottom: 4px; }
+.answer-text li > ul, .answer-text li > ol { margin: 4px 0 4px 0; }
+.answer-text code {
+  background: #21262d;
+  color: #e6edf3;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+}
+.answer-text pre {
+  background: #0d1117;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin: 10px 0;
+  overflow-x: auto;
+}
+.answer-text pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: 13px;
+  color: #c9d1d9;
+  line-height: 1.5;
+}
+.answer-text blockquote {
+  border-left: 3px solid #30363d;
+  padding: 4px 16px;
+  margin: 10px 0;
+  color: #8b949e;
+}
+.answer-text hr {
+  border: none;
+  border-top: 1px solid #30363d;
+  margin: 16px 0;
+}
+.answer-text table {
+  border-collapse: collapse;
+  margin: 10px 0;
+  width: 100%;
+  font-size: 13px;
+}
+.answer-text th, .answer-text td {
+  border: 1px solid #30363d;
+  padding: 8px 12px;
+  text-align: left;
+}
+.answer-text th {
+  background: #21262d;
+  color: #f0f6fc;
+  font-weight: 600;
+}
+.answer-text td { color: #c9d1d9; }
 
 /* References Section */
 .references-section {
