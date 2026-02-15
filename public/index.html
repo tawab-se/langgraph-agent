@@ -67,6 +67,10 @@
     const sendBtn = document.getElementById('sendBtn');
     const welcome = document.getElementById('welcome');
 
+    // Conversation history (last 10 exchanges sent as context)
+    const MAX_HISTORY = 10;
+    let conversationHistory = [];
+
     queryInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !sendBtn.disabled) sendQuery();
     });
@@ -348,7 +352,7 @@
         const res = await fetch('/api/chat/stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query, imageUrl }),
+          body: JSON.stringify({ query, imageUrl, history: conversationHistory }),
         });
 
         if (!res.ok) {
@@ -460,6 +464,16 @@
           + '<span>' + timeStr + '</span>';
         bubble.appendChild(metaDiv);
         scrollToBottom();
+
+        // Save to conversation history for follow-up context
+        conversationHistory.push({ role: 'user', content: query });
+        if (answerText.trim()) {
+          conversationHistory.push({ role: 'assistant', content: answerText.trim() });
+        }
+        // Keep only the last MAX_HISTORY messages
+        if (conversationHistory.length > MAX_HISTORY) {
+          conversationHistory = conversationHistory.slice(-MAX_HISTORY);
+        }
 
       } catch (err) {
         removeLoading();

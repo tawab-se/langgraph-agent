@@ -6,9 +6,22 @@ import { imageTool } from '../tools/image.tool.js';
 import { geminiClient } from '../llm/gemini.client.js';
 import { colors, printRouting } from '../utils/terminal.ui.js';
 
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export interface SSEEvent {
   type: 'thinking' | 'route' | 'token' | 'references' | 'chart' | 'image' | 'image-edit' | 'sources' | 'done' | 'error';
   data: any;
+}
+
+function formatHistory(history: ChatMessage[]): string {
+  if (!history || history.length === 0) return '';
+  const lines = history.map(m =>
+    m.role === 'user' ? `User: ${m.content}` : `Assistant: ${m.content}`
+  ).join('\n');
+  return `\nCONVERSATION HISTORY (for context on follow-up questions):\n${lines}\n`;
 }
 export class DelegatingAgent {
   private workflow: any;
@@ -314,11 +327,14 @@ Respond with JSON only: {"tools": ["rag"|"chart"|"both"|"direct"|"image"], "reas
     return finalResponse;
   }
 
-  async *processQueryStream(query: string, imageUrl?: string): AsyncGenerator<SSEEvent, void, unknown> {
+  async *processQueryStream(query: string, imageUrl?: string, history: ChatMessage[] = []): AsyncGenerator<SSEEvent, void, unknown> {
     console.log(colors.bold(`\n${'═'.repeat(60)}`));
     console.log(colors.bold.cyan(`🚀 Streaming Query: `) + colors.info(`"${query}"`));
     if (imageUrl) console.log(colors.info(`🖼️  With image: ${imageUrl}`));
+    if (history.length > 0) console.log(colors.dim(`📝 Conversation history: ${history.length} messages`));
     console.log(colors.bold(`${'═'.repeat(60)}`));
+
+    const historyContext = formatHistory(history);
 
     try {
       // 0. Yield immediately so the client gets data before the router LLM call
@@ -330,10 +346,61 @@ Respond with JSON only: {"tools": ["rag"|"chart"|"both"|"direct"|"image"], "reas
       if (imageUrl) {
         decision = { tools: ['image'], reasoning: 'Image attached by user' };
       } else {
-        // 1. Route the query via LLM
-        const state: AgentState = { query, finalAnswer: '', data: [] };
-        const routerResult = await this.routerNode(state);
-        decision = routerResult.decision!;
+        // 1. Route the query via LLM (with history for context on follow-ups)
+        const routerPrompt = `
+You are a routing agent that decides WHERE the answer should come from.
+
+AVAILABLE ROUTES:
+- rag: Use when the user is asking about specific documents, uploaded files,
+  company data, stored knowledge, or domain-specific facts that would be in a
+  knowledge base. Examples: "what does our policy say about...", "find info about
+  product X from the docs", "what are the sales numbers".
+- chart: Use when the user asks to create, modify, or explain a chart or chart.js
+  configuration, visualization setup, or mock chart data.
+- both: Use when the user needs information from the knowledge base AND a chart
+  or visualization built from that information.
+- image: Use when the user asks to generate, create, draw, or design an image,
+  picture, photo, illustration, or artwork. Also use when the user wants to edit,
+  modify, or transform an existing image. Examples: "generate an image of a sunset",
+  "create a portrait", "draw a futuristic city", "make this image look like a painting".
+- direct: Use when the question is about general knowledge, concepts, how things
+  work, coding help, math, creative writing, or anything that does NOT require
+  looking up specific stored documents. Examples: "how does AI work",
+  "explain kubernetes", "what is machine learning", "write a function that...".
+
+CRITICAL RULES:
+- General knowledge questions should ALWAYS go to 'direct'.
+- Only use 'rag' when the user clearly wants information from their stored documents/knowledge base.
+- If the question is about a general topic (technology, science, programming concepts), use 'direct'.
+- If the user asks to generate, create, or edit an image/picture/photo, ALWAYS use 'image'.
+- If unsure, prefer 'direct' over 'rag' — the LLM can answer most questions well.
+- Use the conversation history below (if any) to understand follow-up queries like "explain more", "show that as a chart", etc.
+${historyContext}
+Query:
+"${query}"
+
+Respond with JSON only: {"tools": ["rag"|"chart"|"both"|"direct"|"image"], "reasoning": "..."}`;
+
+        const response = await geminiClient.generate(routerPrompt);
+
+        try {
+          const parsed = JSON.parse(response);
+          const tools = Array.isArray(parsed.tools) ? parsed.tools : [parsed.tools || 'rag'];
+          decision = { tools, reasoning: parsed.reasoning || 'Routed by LLM' };
+        } catch {
+          if (response.toLowerCase().includes('image')) {
+            decision = { tools: ['image'], reasoning: 'Query mentions image generation' };
+          } else if (response.toLowerCase().includes('chart')) {
+            decision = { tools: ['chart'], reasoning: 'Query mentions visualization' };
+          } else if (response.toLowerCase().includes('direct') ||
+                     /\d+\s*[\+\-\*\/]\s*\d+/.test(query)) {
+            decision = { tools: ['direct'], reasoning: 'Math/code task' };
+          } else {
+            decision = { tools: ['rag'], reasoning: 'Informational query - checking knowledge base' };
+          }
+        }
+
+        printRouting('Router', decision.tools.join(', '), decision.reasoning);
       }
 
       yield { type: 'route', data: decision };
@@ -352,8 +419,11 @@ Respond with JSON only: {"tools": ["rag"|"chart"|"both"|"direct"|"image"], "reas
           yield { type: 'references', data: searchResult.references };
         }
 
-        // 3. Stream LLM answer
-        for await (const token of geminiClient.generateStream(searchResult.prompt)) {
+        // 3. Stream LLM answer with conversation history
+        const ragPrompt = historyContext
+          ? searchResult.prompt + `\n${historyContext}\nCurrent question: "${query}"`
+          : searchResult.prompt;
+        for await (const token of geminiClient.generateStream(ragPrompt)) {
           yield { type: 'token', data: token };
         }
 
@@ -396,9 +466,11 @@ Respond with JSON only: {"tools": ["rag"|"chart"|"both"|"direct"|"image"], "reas
           yield { type: 'token', data: `Here is the generated image for: "${query}"` };
         }
       } else {
-        // 2c. Direct Gemini answer
+        // 2c. Direct Gemini answer with conversation history
         console.log(colors.system('\n💬 Providing direct answer...'));
-        const prompt = `Answer the following question directly and concisely: ${query}`;
+        const prompt = historyContext
+          ? `${historyContext}\nCurrent question: "${query}"\n\nAnswer the current question directly and concisely. Use the conversation history for context if the question is a follow-up.`
+          : `Answer the following question directly and concisely: ${query}`;
         for await (const token of geminiClient.generateStream(prompt)) {
           yield { type: 'token', data: token };
         }

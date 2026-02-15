@@ -118,7 +118,7 @@ app.post('/api/upload/image', imageUpload.single('image'), (req, res) => {
 
 // SSE streaming chat endpoint
 app.post('/api/chat/stream', async (req, res) => {
-  const { query, imageUrl } = req.body;
+  const { query, imageUrl, history } = req.body;
 
   if (!query || typeof query !== 'string') {
     return res.status(400).json({ error: 'Query is required' });
@@ -145,7 +145,8 @@ app.post('/api/chat/stream', async (req, res) => {
   res.write(`:${' '.repeat(4096)}\n\n`);
 
   try {
-    for await (const event of agent.processQueryStream(query, fullImageUrl)) {
+    const chatHistory = Array.isArray(history) ? history.slice(-10) : [];
+    for await (const event of agent.processQueryStream(query, fullImageUrl, chatHistory)) {
       res.write(`event: ${event.type}\ndata: ${JSON.stringify(event.data)}\n\n`);
     }
   } catch (error) {
