@@ -721,6 +721,33 @@
             This enables a modular, graph-based workflow.
           </p>
         </div>
+
+        <div class="model-card">
+          <div class="model-card-header">
+            <span class="model-card-badge badge-green">Context</span>
+            <span class="model-card-name">Conversation Memory</span>
+          </div>
+          <p>
+            The agent maintains a rolling history of the last <strong>10 messages</strong> (5 exchanges).
+            History is sent with every request and injected into the router prompt, direct answer prompt,
+            and RAG prompt &mdash; enabling follow-up questions like "explain that in more detail" or
+            "now show that as a pie chart instead." History is managed client-side and capped server-side.
+          </p>
+        </div>
+
+        <div class="model-card">
+          <div class="model-card-header">
+            <span class="model-card-badge badge-blue">Rendering</span>
+            <span class="model-card-name">Markdown via marked.js</span>
+          </div>
+          <p>
+            LLM responses are rendered as rich HTML using <code>marked.js</code> with GitHub Flavored
+            Markdown (GFM). Supports <strong>bold</strong>, <em>italic</em>, headings, bullet/numbered lists,
+            inline <code>code</code>, fenced code blocks, blockquotes, tables, and links &mdash; all
+            styled with dark-theme typography. Markdown is re-parsed on each streaming token for
+            real-time formatted output.
+          </p>
+        </div>
       </div>
 
       <!-- Flow Section -->
@@ -743,7 +770,8 @@
           <div class="flow-step-content">
             <h4>Intelligent Routing</h4>
             <p>
-              The Delegating Agent sends the query to Gemini with a routing prompt. Gemini classifies
+              The Delegating Agent sends the query to Gemini with a routing prompt, along with
+              conversation history for follow-up context. Gemini classifies
               it as one of: <strong>rag</strong> (document search), <strong>chart</strong> (visualization),
               <strong>direct</strong> (general knowledge), <strong>image</strong> (generation/editing),
               or <strong>both</strong> (RAG + chart). If an image is attached, routing is skipped and
@@ -802,6 +830,7 @@
             <strong>LLM:</strong> Google Gemini 2.5 Flash Lite (free tier)<br>
             <strong>Image Gen:</strong> Pollinations.ai (FLUX), Puter.js (FLUX.1 Kontext Pro)<br>
             <strong>PDF Parsing:</strong> pdf-parse<br>
+            <strong>Markdown:</strong> marked.js (GFM)<br>
             <strong>Streaming:</strong> Server-Sent Events (SSE)<br>
             <strong>Deployment:</strong> Koyeb
           </p>
@@ -809,7 +838,7 @@
       </div>
 
       <div class="about-footer">
-        Built with LangGraph &bull; Weaviate &bull; Gemini &bull; Pollinations.ai &bull; Puter.js
+        Built with LangGraph &bull; Weaviate &bull; Gemini &bull; Pollinations.ai &bull; Puter.js &bull; marked.js
       </div>
     </div>
   </div>
