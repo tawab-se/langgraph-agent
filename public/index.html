@@ -8,6 +8,8 @@
   <script src="https://js.puter.com/v2/"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/github-dark.min.css">
+  <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/highlight.min.js"></script>
 </head>
 <body>
   <div class="header">
@@ -17,6 +19,8 @@
       <p>Weaviate RAG &bull; Chart.js &bull; Gemini &bull; Pollinations.ai &bull; Puter.js</p>
     </div>
     <button class="about-btn docs-btn" onclick="openDocsPanel()">&#128196; Docs</button>
+    <button class="about-btn" onclick="exportChat()" id="exportBtn" style="display:none">&#128190; Export</button>
+    <button class="about-btn" onclick="clearChat()">&#10010; New Chat</button>
     <button class="about-btn" onclick="document.getElementById('aboutOverlay').classList.add('active')">&#9432; About</button>
   </div>
 
@@ -57,11 +61,38 @@
   </div>
 
   <script>
-    // Configure marked.js for safe markdown rendering
+    // Configure marked.js with highlight.js for syntax highlighting
     marked.setOptions({
       breaks: true,
       gfm: true,
+      highlight: function(code, lang) {
+        if (lang && hljs.getLanguage(lang)) {
+          try { return hljs.highlight(code, { language: lang }).value; } catch (_) {}
+        }
+        try { return hljs.highlightAuto(code).value; } catch (_) {}
+        return code;
+      },
     });
+
+    // Add copy buttons to all <pre> code blocks after markdown render
+    function addCodeCopyButtons(container) {
+      container.querySelectorAll('pre').forEach(function(pre) {
+        if (pre.querySelector('.code-copy-btn')) return;
+        var btn = document.createElement('button');
+        btn.className = 'code-copy-btn';
+        btn.textContent = 'Copy';
+        btn.onclick = function() {
+          var code = pre.querySelector('code');
+          var text = code ? code.textContent : pre.textContent;
+          navigator.clipboard.writeText(text).then(function() {
+            btn.textContent = 'Copied!';
+            setTimeout(function() { btn.textContent = 'Copy'; }, 1500);
+          });
+        };
+        pre.style.position = 'relative';
+        pre.appendChild(btn);
+      });
+    }
 
     const chatArea = document.getElementById('chatArea');
     const queryInput = document.getElementById('queryInput');
@@ -118,12 +149,30 @@
       'image-edit': { key: 'image', label: 'Puter.js Kontext', icon: '&#127912;' },
     };
 
-    function addErrorMessage(msg) {
+    function addErrorMessage(msg, retryQuery, retryImageUrl) {
       const div = document.createElement('div');
       div.className = 'message assistant';
-      div.innerHTML = '<div class="error-msg">' + escapeHtml(msg) + '</div>';
+      var html = '<div class="error-msg">' + escapeHtml(msg);
+      if (retryQuery) {
+        html += '<button class="retry-btn" onclick="retryLastQuery()">&#8635; Retry</button>';
+        lastFailedQuery = retryQuery;
+        lastFailedImageUrl = retryImageUrl || null;
+      }
+      html += '</div>';
+      div.innerHTML = html;
       chatArea.appendChild(div);
       scrollToBottom();
+    }
+
+    var lastFailedQuery = null;
+    var lastFailedImageUrl = null;
+    function retryLastQuery() {
+      if (!lastFailedQuery) return;
+      queryInput.value = lastFailedQuery;
+      if (lastFailedImageUrl) pendingImageUrl = lastFailedImageUrl;
+      lastFailedQuery = null;
+      lastFailedImageUrl = null;
+      sendQuery();
     }
 
     function buildReferencesHtml(refs) {
@@ -348,12 +397,16 @@
       addLoadingMessage();
 
       const startTime = Date.now();
+      const STREAM_TIMEOUT = 60000;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(function() { controller.abort(); }, STREAM_TIMEOUT);
 
       try {
         const res = await fetch('/api/chat/stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ query, imageUrl, history: conversationHistory }),
+          signal: controller.signal,
         });
 
         if (!res.ok) {
@@ -419,10 +472,12 @@
               } else if (eventType === 'token') {
                 answerText += data;
                 answerEl.innerHTML = marked.parse(answerText);
+                addCodeCopyButtons(answerEl);
                 scrollToBottom();
               } else if (eventType === 'sources') {
                 answerText += '\n\nSources: ' + data;
                 answerEl.innerHTML = marked.parse(answerText);
+                addCodeCopyButtons(answerEl);
               } else if (eventType === 'references') {
                 bubble.insertAdjacentHTML('beforeend', buildReferencesHtml(data));
                 allData = allData.concat(data);
@@ -466,6 +521,8 @@
         bubble.appendChild(metaDiv);
         scrollToBottom();
 
+        clearTimeout(timeoutId);
+
         // Save to conversation history for follow-up context
         conversationHistory.push({ role: 'user', content: query });
         if (answerText.trim()) {
@@ -476,9 +533,16 @@
           conversationHistory = conversationHistory.slice(-MAX_HISTORY);
         }
 
+        // Show export button now that we have chat content
+        document.getElementById('exportBtn').style.display = '';
+
       } catch (err) {
+        clearTimeout(timeoutId);
         removeLoading();
-        addErrorMessage('Error: ' + err.message);
+        var errMsg = err.name === 'AbortError'
+          ? 'Error: Request timed out after 60 seconds. The server may be overloaded.'
+          : 'Error: ' + err.message;
+        addErrorMessage(errMsg, query, imageUrl);
       } finally {
         sendBtn.disabled = false;
         queryInput.disabled = false;
@@ -728,6 +792,50 @@
         }
       }
     }
+
+    // --- New Chat ---
+    function clearChat() {
+      var messages = chatArea.querySelectorAll('.message');
+      if (messages.length === 0) return;
+      if (!confirm('Clear conversation and start fresh?')) return;
+      chatArea.innerHTML = '';
+      conversationHistory = [];
+      document.getElementById('exportBtn').style.display = 'none';
+      // Re-add welcome
+      var w = document.createElement('div');
+      w.className = 'welcome';
+      w.id = 'welcome';
+      w.innerHTML = '<h2>What can I help you with?</h2>'
+        + '<p>Ask questions about company policies, products, API docs, or request charts.</p>'
+        + '<div class="examples">'
+        + '<button class="example-btn" onclick="askExample(this)">What is the remote work policy?</button>'
+        + '<button class="example-btn" onclick="askExample(this)">Show me a bar chart of sales</button>'
+        + '<button class="example-btn" onclick="askExample(this)">What are the ProductX pricing tiers?</button>'
+        + '<button class="example-btn" onclick="askExample(this)">What is 25 + 17?</button>'
+        + '<button class="example-btn" onclick="askExample(this)">Generate an image of a sunset over mountains</button>'
+        + '</div>';
+      chatArea.appendChild(w);
+    }
+
+    // --- Chat Export ---
+    function exportChat() {
+      var md = '# LangGraph Agent Chat Export\n';
+      md += '_Exported: ' + new Date().toLocaleString() + '_\n\n---\n\n';
+      conversationHistory.forEach(function(msg) {
+        if (msg.role === 'user') {
+          md += '**You:** ' + msg.content + '\n\n';
+        } else {
+          md += '**Assistant:** ' + msg.content + '\n\n---\n\n';
+        }
+      });
+      var blob = new Blob([md], { type: 'text/markdown' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'chat-export-' + new Date().toISOString().slice(0, 10) + '.md';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
   </script>
 
   <!-- Documents Modal -->
@@ -868,7 +976,8 @@
             LLM responses are rendered as rich HTML using <code>marked.js</code> with GitHub Flavored
             Markdown (GFM). Supports <strong>bold</strong>, <em>italic</em>, headings, bullet/numbered lists,
             inline <code>code</code>, fenced code blocks, blockquotes, tables, and links &mdash; all
-            styled with dark-theme typography. Markdown is re-parsed on each streaming token for
+            styled with dark-theme typography. Code blocks get <code>highlight.js</code> syntax coloring
+            and a one-click copy button. Markdown is re-parsed on each streaming token for
             real-time formatted output.
           </p>
         </div>
@@ -883,6 +992,19 @@
             PDFs currently indexed in Weaviate. Each entry displays the filename, chunk count, and page
             numbers. Documents can be deleted individually, removing all associated chunks from the
             vector database.
+          </p>
+        </div>
+
+        <div class="model-card">
+          <div class="model-card-header">
+            <span class="model-card-badge badge-purple">UX</span>
+            <span class="model-card-name">Chat Controls</span>
+          </div>
+          <p>
+            <strong>New Chat</strong> clears the conversation and resets history.
+            <strong>Export</strong> downloads the full chat as a Markdown file.
+            Failed requests show a <strong>Retry</strong> button to resend the query.
+            Streaming requests have a 60-second timeout to prevent indefinite hangs.
           </p>
         </div>
       </div>
@@ -967,7 +1089,7 @@
             <strong>LLM:</strong> Google Gemini 2.5 Flash Lite (free tier)<br>
             <strong>Image Gen:</strong> Pollinations.ai (FLUX), Puter.js (FLUX.1 Kontext Pro)<br>
             <strong>PDF Parsing:</strong> pdf-parse<br>
-            <strong>Markdown:</strong> marked.js (GFM)<br>
+            <strong>Markdown:</strong> marked.js (GFM) + highlight.js<br>
             <strong>Streaming:</strong> Server-Sent Events (SSE)<br>
             <strong>Deployment:</strong> Koyeb
           </p>
