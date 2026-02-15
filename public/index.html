@@ -774,7 +774,9 @@
             <strong>query routing</strong> (deciding which tool handles each query),
             <strong>direct answers</strong> (general knowledge, coding, math), and
             <strong>RAG synthesis</strong> (generating answers from retrieved document chunks).
-            Free tier: 1,000 requests/day, 15 requests/minute.
+            Free tier: 1,000 requests/day, 15 requests/minute. Rate-limit errors (429)
+            are automatically retried with exponential backoff (up to 3 retries). If the
+            daily quota is exhausted, a user-friendly message is shown instead.
           </p>
         </div>
 
