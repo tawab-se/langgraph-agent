@@ -16,6 +16,7 @@
       <h1>LangGraph Agent</h1>
       <p>Weaviate RAG &bull; Chart.js &bull; Gemini &bull; Pollinations.ai &bull; Puter.js</p>
     </div>
+    <button class="about-btn docs-btn" onclick="openDocsPanel()">&#128196; Docs</button>
     <button class="about-btn" onclick="document.getElementById('aboutOverlay').classList.add('active')">&#9432; About</button>
   </div>
 
@@ -624,7 +625,128 @@
         }
       }
     });
+
+    // --- Document Management ---
+    async function openDocsPanel() {
+      document.getElementById('docsOverlay').classList.add('active');
+      await loadDocuments();
+    }
+
+    function closeDocsPanel() {
+      document.getElementById('docsOverlay').classList.remove('active');
+    }
+
+    async function loadDocuments() {
+      var content = document.getElementById('docsContent');
+      var summary = document.getElementById('docsSummary');
+
+      content.innerHTML = '<div class="docs-loading">'
+        + '<div class="loading-dots"><span></span><span></span><span></span></div>'
+        + '<p>Loading documents...</p></div>';
+      summary.textContent = '';
+
+      try {
+        var res = await fetch('/api/documents');
+        if (!res.ok) throw new Error('Failed to fetch documents');
+        var result = await res.json();
+        var docs = result.data;
+
+        if (!docs || docs.length === 0) {
+          content.innerHTML = '<div class="docs-empty">'
+            + '<p>No documents indexed yet.</p>'
+            + '<p>Upload a PDF using the <strong>&#128206; PDF</strong> button to get started.</p>'
+            + '</div>';
+          summary.textContent = '0 documents';
+          return;
+        }
+
+        var totalChunks = 0;
+        var html = '';
+
+        docs.forEach(function(doc) {
+          totalChunks += doc.chunkCount;
+          var pages = doc.pages.join(', ');
+          var pageLabel = doc.pages.length === 1 ? '1 page' : doc.pages.length + ' pages';
+
+          html += '<div class="doc-card" id="doc-' + encodeURIComponent(doc.fileId) + '">'
+            + '<div class="doc-card-header">'
+            + '<div class="doc-card-info">'
+            + '<span class="doc-card-name">&#128196; ' + escapeHtml(doc.fileId) + '</span>'
+            + '<div class="doc-card-meta">'
+            + '<span class="doc-meta-item">' + doc.chunkCount + ' chunks</span>'
+            + '<span class="doc-meta-sep">&#8226;</span>'
+            + '<span class="doc-meta-item">' + pageLabel + '</span>'
+            + '</div>'
+            + '</div>'
+            + '<button class="doc-delete-btn" onclick="deleteDoc(\'' + escapeHtml(doc.fileId).replace(/'/g, "\\'") + '\')" title="Delete document">&#128465;</button>'
+            + '</div>'
+            + '<div class="doc-card-pages">'
+            + '<span class="doc-pages-label">Pages:</span> '
+            + '<span class="doc-pages-list">' + escapeHtml(pages) + '</span>'
+            + '</div>'
+            + '</div>';
+        });
+
+        content.innerHTML = html;
+        summary.textContent = docs.length + ' document' + (docs.length !== 1 ? 's' : '') + ' \u2022 ' + totalChunks + ' total chunks';
+      } catch (err) {
+        content.innerHTML = '<div class="docs-error">'
+          + '<p>Failed to load documents: ' + escapeHtml(err.message) + '</p>'
+          + '</div>';
+      }
+    }
+
+    async function deleteDoc(fileId) {
+      if (!confirm('Delete "' + fileId + '" and all its chunks from Weaviate?\n\nThis cannot be undone.')) {
+        return;
+      }
+
+      var card = document.getElementById('doc-' + encodeURIComponent(fileId));
+      if (card) {
+        card.style.opacity = '0.5';
+        card.style.pointerEvents = 'none';
+      }
+
+      try {
+        var res = await fetch('/api/documents/' + encodeURIComponent(fileId), {
+          method: 'DELETE',
+        });
+
+        if (!res.ok) {
+          var err = await res.json().catch(function() { return {}; });
+          throw new Error(err.message || err.error || 'Delete failed');
+        }
+
+        var result = await res.json();
+        showToast(result.message, 'success', 4000);
+        await loadDocuments();
+      } catch (err) {
+        showToast('Delete failed: ' + err.message, 'error', 5000);
+        if (card) {
+          card.style.opacity = '1';
+          card.style.pointerEvents = 'auto';
+        }
+      }
+    }
   </script>
+
+  <!-- Documents Modal -->
+  <div class="about-overlay" id="docsOverlay" onclick="if(event.target===this)closeDocsPanel()">
+    <div class="about-modal docs-modal">
+      <button class="about-close" onclick="closeDocsPanel()">&times;</button>
+      <h2>&#128196; Indexed Documents</h2>
+      <p class="about-subtitle">PDFs currently stored in Weaviate. Each document is split into chunks for semantic search.</p>
+      <div id="docsContent">
+        <div class="docs-loading">
+          <div class="loading-dots"><span></span><span></span><span></span></div>
+          <p>Loading documents...</p>
+        </div>
+      </div>
+      <div class="about-footer">
+        <span id="docsSummary"></span>
+      </div>
+    </div>
+  </div>
 
   <!-- About Modal -->
   <div class="about-overlay" id="aboutOverlay" onclick="if(event.target===this)this.classList.remove('active')">
@@ -746,6 +868,19 @@
             inline <code>code</code>, fenced code blocks, blockquotes, tables, and links &mdash; all
             styled with dark-theme typography. Markdown is re-parsed on each streaming token for
             real-time formatted output.
+          </p>
+        </div>
+
+        <div class="model-card">
+          <div class="model-card-header">
+            <span class="model-card-badge badge-orange">Management</span>
+            <span class="model-card-name">Document Panel</span>
+          </div>
+          <p>
+            The <strong>Docs</strong> button in the header opens a document management panel showing all
+            PDFs currently indexed in Weaviate. Each entry displays the filename, chunk count, and page
+            numbers. Documents can be deleted individually, removing all associated chunks from the
+            vector database.
           </p>
         </div>
       </div>

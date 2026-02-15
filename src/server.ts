@@ -8,6 +8,7 @@ import { DelegatingAgent } from './agents/delegating.agent.js';
 import { closeWeaviateClient } from './database/weaviate.client.js';
 import { parsePDF } from './services/pdf.parser.js';
 import { uploadChunksToWeaviate } from './services/weaviate.uploader.js';
+import { listDocuments, deleteDocument } from './services/document.manager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -27,7 +28,7 @@ app.use(express.static(join(__dirname, '../public')));
 // CORS
 app.use((_req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (_req.method === 'OPTIONS') return res.status(204).end();
   next();
@@ -98,6 +99,46 @@ app.post('/api/upload', upload.single('pdf'), async (req, res) => {
     console.error('PDF upload error:', error);
     return res.status(500).json({
       error: 'Failed to process PDF',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+// List indexed documents
+app.get('/api/documents', async (_req, res) => {
+  try {
+    const documents = await listDocuments();
+    return res.json({ success: true, data: documents });
+  } catch (error) {
+    console.error('List documents error:', error);
+    return res.status(500).json({
+      error: 'Failed to list documents',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+// Delete a document and all its chunks
+app.delete('/api/documents/:fileId', async (req, res) => {
+  const fileId = decodeURIComponent(req.params.fileId);
+
+  if (!fileId) {
+    return res.status(400).json({ error: 'fileId is required' });
+  }
+
+  try {
+    const deletedCount = await deleteDocument(fileId);
+    console.log(`Deleted "${fileId}": ${deletedCount} chunks removed`);
+    return res.json({
+      success: true,
+      fileId,
+      chunksDeleted: deletedCount,
+      message: `Deleted "${fileId}": ${deletedCount} chunks removed`,
+    });
+  } catch (error) {
+    console.error('Delete document error:', error);
+    return res.status(500).json({
+      error: 'Failed to delete document',
       message: error instanceof Error ? error.message : 'Unknown error',
     });
   }
