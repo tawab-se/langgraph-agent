@@ -327,14 +327,23 @@ Respond with JSON only: {"tools": ["rag"|"chart"|"both"|"direct"|"image"], "reas
     return finalResponse;
   }
 
-  async *processQueryStream(query: string, imageUrl?: string, history: ChatMessage[] = []): AsyncGenerator<SSEEvent, void, unknown> {
+  async *processQueryStream(query: string, imageUrl?: string, history: ChatMessage[] = [], uploadedDocs: string[] = []): AsyncGenerator<SSEEvent, void, unknown> {
     console.log(colors.bold(`\n${'═'.repeat(60)}`));
     console.log(colors.bold.cyan(`🚀 Streaming Query: `) + colors.info(`"${query}"`));
     if (imageUrl) console.log(colors.info(`🖼️  With image: ${imageUrl}`));
     if (history.length > 0) console.log(colors.dim(`📝 Conversation history: ${history.length} messages`));
+    if (uploadedDocs.length > 0) console.log(colors.dim(`📄 Uploaded documents in scope: ${uploadedDocs.join(', ')}`));
     console.log(colors.bold(`${'═'.repeat(60)}`));
 
     const historyContext = formatHistory(history);
+
+    // Doc-first routing: when the user has uploaded documents, bias the router
+    // toward RAG so questions about the document aren't answered from the LLM's
+    // general knowledge (e.g. "Who is <name>?" should read the uploaded résumé).
+    const docContext = uploadedDocs.length > 0
+      ? `\nUPLOADED DOCUMENTS CURRENTLY IN SCOPE: ${uploadedDocs.join(', ')}
+DOCUMENT-FIRST RULE: The user has uploaded the document(s) above. For ANY question that could plausibly be answered from them — including questions about people, names, companies, dates, or facts that sound like general knowledge (e.g. "Who is X?", "What does X do?", "Summarize this") — you MUST route to 'rag'. Only use 'direct' for questions that clearly have nothing to do with the uploaded document(s), such as math, coding help, or unrelated creative writing.\n`
+      : '';
 
     try {
       // 0. Yield immediately so the client gets data before the router LLM call
@@ -375,7 +384,7 @@ CRITICAL RULES:
 - If the user asks to generate, create, or edit an image/picture/photo, ALWAYS use 'image'.
 - If unsure, prefer 'direct' over 'rag' — the LLM can answer most questions well.
 - Use the conversation history below (if any) to understand follow-up queries like "explain more", "show that as a chart", etc.
-${historyContext}
+${docContext}${historyContext}
 Query:
 "${query}"
 
@@ -392,6 +401,9 @@ Respond with JSON only: {"tools": ["rag"|"chart"|"both"|"direct"|"image"], "reas
             decision = { tools: ['image'], reasoning: 'Query mentions image generation' };
           } else if (response.toLowerCase().includes('chart')) {
             decision = { tools: ['chart'], reasoning: 'Query mentions visualization' };
+          } else if (uploadedDocs.length > 0) {
+            // Doc-first: with an uploaded document in scope, default to RAG.
+            decision = { tools: ['rag'], reasoning: 'Uploaded document in scope - checking document' };
           } else if (response.toLowerCase().includes('direct') ||
                      /\d+\s*[\+\-\*\/]\s*\d+/.test(query)) {
             decision = { tools: ['direct'], reasoning: 'Math/code task' };

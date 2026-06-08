@@ -8,7 +8,7 @@ import { DelegatingAgent } from './agents/delegating.agent.js';
 import { closeWeaviateClient } from './database/weaviate.client.js';
 import { parsePDF } from './services/pdf.parser.js';
 import { uploadChunksToWeaviate } from './services/weaviate.uploader.js';
-import { listDocuments, deleteDocument } from './services/document.manager.js';
+import { listDocuments, deleteDocument, getUploadedFileIds } from './services/document.manager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -187,7 +187,20 @@ app.post('/api/chat/stream', async (req, res) => {
 
   try {
     const chatHistory = Array.isArray(history) ? history.slice(-10) : [];
-    for await (const event of agent.processQueryStream(query, fullImageUrl, chatHistory)) {
+
+    // Doc-first routing: tell the agent which user-uploaded documents are in
+    // scope so questions about them go to RAG instead of the LLM's general
+    // knowledge. Skipped when an image is attached (image routing wins).
+    let uploadedDocs: string[] = [];
+    if (!fullImageUrl) {
+      try {
+        uploadedDocs = await getUploadedFileIds();
+      } catch (e) {
+        console.error('Failed to fetch uploaded docs for routing:', e);
+      }
+    }
+
+    for await (const event of agent.processQueryStream(query, fullImageUrl, chatHistory, uploadedDocs)) {
       res.write(`event: ${event.type}\ndata: ${JSON.stringify(event.data)}\n\n`);
     }
   } catch (error) {

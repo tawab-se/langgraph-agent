@@ -37,7 +37,7 @@ export class RAGAgent {
       for (const obj of response.objects) {
         const props = obj.properties as any;
         const distance = obj.metadata?.distance ?? 1;
-        if (distance < 0.45) {
+        if (distance < 0.7) {
           results.push({
             fileId: props.fileId as string,
             pageNumber: props.pageNumber as string[],
@@ -92,9 +92,9 @@ Context:
 ${context}
 
 Instructions:
-- Answer based on the context provided
-- If the context does not contain relevant information to answer the question, answer using your own knowledge instead
-- Be concise and accurate`;
+- Answer ONLY using the context provided above, which comes from the user's uploaded document(s).
+- If the context does not contain the information needed, say "I couldn't find that in the uploaded document." Do NOT answer from your own general knowledge or make assumptions.
+- Be concise and accurate.`;
     } else {
       prompt = `Answer the following question concisely and accurately: ${userQuery}`;
     }
@@ -126,7 +126,7 @@ Instructions:
         const props = obj.properties as any;
         const distance = obj.metadata?.distance ?? 1;
         
-        if (distance < 0.45) {
+        if (distance < 0.7) {
           results.push({
             fileId: props.fileId as string,
             pageNumber: props.pageNumber as string[],
@@ -180,9 +180,9 @@ Context:
 ${context}
 
 Instructions:
-- Answer based on the context provided
-- If the context does not contain relevant information to answer the question, answer using your own knowledge instead
-- Be concise and accurate`;
+- Answer ONLY using the context provided above, which comes from the user's uploaded document(s).
+- If the context does not contain the information needed, say "I couldn't find that in the uploaded document." Do NOT answer from your own general knowledge or make assumptions.
+- Be concise and accurate.`;
 
       answer = await geminiClient.generate(prompt);
 

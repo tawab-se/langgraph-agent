@@ -3,10 +3,26 @@ import { COLLECTION_NAME } from '../config/weaviate.config.js';
 
 const TENANT_NAME = 'default_tenant';
 
+// Seed/sample data fileIds — anything else is a user-uploaded document.
+const SEED_FILE_IDS = new Set(['file-001', 'file-002', 'file-003', 'file-004']);
+
 export interface DocumentInfo {
   fileId: string;
   chunkCount: number;
   pages: string[];
+}
+
+/**
+ * Returns the list of user-uploaded document fileIds currently in the knowledge
+ * base (excluding the built-in seed/sample data). Used by the router so that
+ * questions are sent to RAG when the user has uploaded a document, even if the
+ * question phrasing sounds like general knowledge.
+ */
+export async function getUploadedFileIds(): Promise<string[]> {
+  const docs = await listDocuments();
+  return docs
+    .map(d => d.fileId)
+    .filter(fileId => !SEED_FILE_IDS.has(fileId));
 }
 
 export async function listDocuments(): Promise<DocumentInfo[]> {
