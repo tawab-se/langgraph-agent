@@ -33,7 +33,7 @@
     "multer": "^2.0.2",
     "ora": "^8.2.0",
     "pdf-parse": "^1.1.1",
-    "weaviate-client": "^3.2.0"
+    "weaviate-client": "^3.13.1"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
