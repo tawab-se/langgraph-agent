@@ -37,7 +37,7 @@ export class RAGAgent {
       for (const obj of response.objects) {
         const props = obj.properties as any;
         const distance = obj.metadata?.distance ?? 1;
-        if (distance < 0.7) {
+        if (distance < 0.42) {
           results.push({
             fileId: props.fileId as string,
             pageNumber: props.pageNumber as string[],
@@ -92,8 +92,9 @@ Context:
 ${context}
 
 Instructions:
-- Answer ONLY using the context provided above, which comes from the user's uploaded document(s).
-- If the context does not contain the information needed, say "I couldn't find that in the uploaded document." Do NOT answer from your own general knowledge or make assumptions.
+- The context above comes from the user's uploaded document(s).
+- If the context actually contains information relevant to the question, answer USING ONLY that context. Do not add facts that are not in the context.
+- If the context is clearly unrelated to the question (the question is general knowledge that has nothing to do with the document), ignore the context and answer the question normally from your own knowledge.
 - Be concise and accurate.`;
     } else {
       prompt = `Answer the following question concisely and accurately: ${userQuery}`;
@@ -126,7 +127,7 @@ Instructions:
         const props = obj.properties as any;
         const distance = obj.metadata?.distance ?? 1;
         
-        if (distance < 0.7) {
+        if (distance < 0.42) {
           results.push({
             fileId: props.fileId as string,
             pageNumber: props.pageNumber as string[],
@@ -180,8 +181,9 @@ Context:
 ${context}
 
 Instructions:
-- Answer ONLY using the context provided above, which comes from the user's uploaded document(s).
-- If the context does not contain the information needed, say "I couldn't find that in the uploaded document." Do NOT answer from your own general knowledge or make assumptions.
+- The context above comes from the user's uploaded document(s).
+- If the context actually contains information relevant to the question, answer USING ONLY that context. Do not add facts that are not in the context.
+- If the context is clearly unrelated to the question (the question is general knowledge that has nothing to do with the document), ignore the context and answer the question normally from your own knowledge.
 - Be concise and accurate.`;
 
       answer = await geminiClient.generate(prompt);
