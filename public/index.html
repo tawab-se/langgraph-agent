@@ -397,9 +397,16 @@
       addLoadingMessage();
 
       const startTime = Date.now();
-      const STREAM_TIMEOUT = 60000;
+      // Inactivity timeout: abort only if the server goes silent for this long.
+      // Reset on every chunk so long-but-active streams (cold starts, image
+      // generation) aren't killed mid-flight.
+      const STREAM_TIMEOUT = 120000;
       const controller = new AbortController();
-      const timeoutId = setTimeout(function() { controller.abort(); }, STREAM_TIMEOUT);
+      let timeoutId = setTimeout(function() { controller.abort(); }, STREAM_TIMEOUT);
+      function resetStreamTimeout() {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(function() { controller.abort(); }, STREAM_TIMEOUT);
+      }
 
       try {
         const res = await fetch('/api/chat/stream', {
@@ -450,6 +457,9 @@
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
+
+          // Server is actively streaming — keep the connection alive.
+          resetStreamTimeout();
 
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split('\n');
